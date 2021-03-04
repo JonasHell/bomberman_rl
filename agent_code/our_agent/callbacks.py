@@ -69,7 +69,69 @@ def state_to_features(game_state: dict) -> np.array:
     # This is the dict before the game begins and after it ends
     if game_state is None:
         return None
+    
+    # We want to represent the state as vector.
+    # For each cell on the field we define a vector with 6 entries, each either 0 or 1
+    # [0, 0, 0, 0, 0, 0] --> free
+    # [1, 0, 0, 0, 0, 0] --> stone
+    # [0, 1, 0, 0, 0, 0] --> crate
+    # [0, 0, 1, 0, 0, 0] --> coin
+    # [0, 0, 0, 1, 0, 0] --> bomb
+    # [0, 0, 0, 0, 1, 0] --> fire
+    # [0, 0, 0, 0, 0, 1] --> player
+    # in principle with this encoding multiple cases could happen at the same time
+    # e.g. [0, 0, 0, 1, 0, 1] --> bomb and player
+    # but in our implementation of the game this is not relevant
+    # because they are a combination of one-hot and binary map
+    # they are called hybrid vectors
 
+    # initialize empty field
+    # note: in the game we have a field of 17x17, but the borders are always
+    # stone so we reduce the dimension to 15x15
+    hybrid_vectors = np.zeros((15, 15, 6), dtype=int)
+    
+    # check where there are stones on the field
+    # just use the field without the borders (1:-1)
+    # set the first entry in the vector to 1
+    hybrid_vectors[ np.where(game_state['field'][1:-1, 1:-1] == -1), 0 ] = 1
+
+    # check where there are crates
+    # set the second entry in the vector to 1
+    hybrid_vectors[ np.where(game_state['field'][1:-1, 1:-1] == 1), 1 ] = 1
+
+    # check where free coins are
+    # set the third entry in the vector to 1
+    # user np.moveaxis to transform list of tuples in numpy array
+    # https://stackoverflow.com/questions/42537956/slice-numpy-array-using-list-of-coordinates
+    # -1 in coordintaes because we left out the border
+    coin_coords = np.moveaxis(np.array(game_state['coins']), -1, 0)
+    hybrid_vectors[ coin_coords[0]-1, coin_coords[1]-1, 2 ] = 1
+
+    # check where bombs are
+    # set the fourth entry in the vector to 1
+    # !!!!!!!!!!! hier hab ich es iwie nicht ohne for loop hinbekommen wegen
+    # diesen komischen tupeln
+    # discard the time since this can be learned by the model because we
+    # use a LSTM network
+    bomb_coords = np.array([bomb[0] for bomb in game_state['bombs']]).T
+    hybrid_vectors[ bomb_coords[0]-1, bomb_coords[1]-1, 3 ] = 1
+
+    # check where fire is
+    # set the fifth entry in the vector to 1
+    hybrid_vectors[ np.where(game_state['explosion_map'][1:-1, 1:-1] > 0), 4 ] = 1
+
+    # check where players are
+    # set the sixth entry in the vector to 1
+    enemy_coords = np.array([player[3] for player in game_state['others']]).T
+    hybrid_vectors[ enemy_coords[0]-1, enemy_coords[1]-1, 5 ] = 1
+
+    # flatten 3D array to 1D vector
+    hyb_vec = hybrid_vectors.flatten()
+
+    # add own position and availability of bomb as 3 additional entries at the end
+    hyb_vec = np.append(hyb_vec, [ game_state['self'][3][0], game_state['self'][3][1], int(game_state['self'][2]) ])
+
+    '''
     # For example, you could construct several channels of equal shape, ...
     channels = []
     channels.append(...)
@@ -77,3 +139,6 @@ def state_to_features(game_state: dict) -> np.array:
     stacked_channels = np.stack(channels)
     # and return them as a vector
     return stacked_channels.reshape(-1)
+    '''
+
+    return hyb_vec
