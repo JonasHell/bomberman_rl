@@ -4,6 +4,11 @@ import random
 
 import numpy as np
 
+import torch
+import torch.nn as nn
+import torch.nn.functional as F
+import torchvision
+
 
 ACTIONS = ['UP', 'RIGHT', 'DOWN', 'LEFT', 'WAIT', 'BOMB']
 
@@ -142,3 +147,28 @@ def state_to_features(game_state: dict) -> np.array:
     '''
 
     return hyb_vec
+
+# wieviele layer? wie groß? sprünge in layer größe okay oder sogar gut?
+# wie baut man lstm layer ein? reicht eins?
+# tensorboard einbauen
+class OurNeuralNetwork(nn.Module):
+    def __init__(self, input_size=1353):
+        super(OurNeuralNetwork, self).__init__()
+        self.input_size = input_size
+        self.linear1 = nn.Linear(input_size, 2048)
+        self.linear2 = nn.Linear(2048, 512)
+        self.linear3 = nn.Linear(512, 128)
+        self.lstm = nn.LSTM(128, 128, 2, batch_first=True)
+        self.linear4 = nn.Linear(128, 6)
+
+    def forward(self, x, hidden_state, cell_state):
+        # könnte auch andere activation function nehmen
+        out = self.linear1(x)
+        out = F.selu(out)
+        out = self.linear2(out)
+        out = F.selu(out)
+        out = self.linear3(out)
+        out = F.selu(out) # macht der SInn vor LSTM?
+        # dimensionen von out noch ändern für lstm?
+        out, (hidden_state, cell_state) = self.lstm(out.unsqueeze(1), (hidden_state, cell_state))
+        
