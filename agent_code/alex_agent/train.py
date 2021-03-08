@@ -13,6 +13,16 @@ import events as e
 Transition = namedtuple('Transition',
                         ('state', 'action', 'next_state', 'reward', 'game_over'))
 
+#lf: 1 if field left of player free, 0 otherwise
+#rf: 1 if field right of player free, --
+#uf: 1 if field above player free, --
+#df: 1 if field below player free, --
+#xc: Horizontal squared distance to nearest coin
+#yc: Vertical squared distance to nearest coin
+#cxd: 1 if coin is left of player, -1 otherwise
+#cyd: 1 if coin is below player, -1 otherwise
+features = ["lf", "rf", "uf", "df", "xc", "yc", "cxd", "cyd"]
+
 # Hyper parameters -- DO modify
 RECORD_ENEMY_TRANSITIONS = 1.0  # record enemy transitions with probability ...
 # Events
@@ -52,7 +62,7 @@ class QLearner:
         state = self.state_to_features(game_state)
 
         #Plot current state of game
-        self.logger.debug(f'Current state: {state}')
+        self.logger.debug(f'Current state: {list(zip(features, state))}')
 
         # Exploration vs exploitation
         # Epsilon - Greedy - Policy with Epsilon = 0.05
@@ -68,7 +78,8 @@ class QLearner:
             self.logger.debug(f'Initialised q value array in step {game_state["step"]}')
             q_values = np.zeros(len(self.actions)).reshape(1, -1)
 
-        self.logger.debug(f'Propose action with a q value of {np.max(q_values[0])}')
+        self.logger.info(f'Current state {state}')
+        self.logger.info(f'Choosing action where {list(zip(self.actions, q_values[0]))}')
 
         return self.actions[np.argmax(q_values[0])]
 
@@ -168,8 +179,8 @@ class QLearner:
         #dist = (coins[idx][0] - self_position[0])**2 + (coins[idx][1] - self_position[1])**2
         dx = coins[idx][0] - self_position[0]
         dy = coins[idx][1] - self_position[1]
-        features[4] = dx
-        features[5] = dy
+        features[4] = dx**2
+        features[5] = dy**2
         features[6] = np.sign(dx)
         features[7] = np.sign(dy)
 
