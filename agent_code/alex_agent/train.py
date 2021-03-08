@@ -19,12 +19,14 @@ RECORD_ENEMY_TRANSITIONS = 1.0  # record enemy transitions with probability ...
 COIN_EVENT = "COIN_COLLECTED"
 
 class QLearner:
-    alpha: float = 0.1  #Learning rate for Q function
+    alpha: float = 0.02  #Learning rate for Q function
     gamma: float = 0.95 #Punishes expectation values in fucture
     memory_size: int = 1000
-    batch_size: int = 5
-    exploration_rate: float = 0.95
-    epsilon: float = 0.3
+    batch_size: int = 10
+    exploration_decay: float = 0.96
+    exploration_max: float = 1.0
+    exploration_min: float = 0.05
+    epsilon: float = 0.2
     is_fit: bool = False
     is_training: bool = True
     actions: List[str] = ['UP', 'RIGHT', 'DOWN', 'LEFT', 'WAIT', 'BOMB']
@@ -41,26 +43,30 @@ class QLearner:
         self.transitions = deque(maxlen=self.memory_size)
         self.model       = MultiOutputRegressor(LGBMRegressor(n_estimators=100, n_jobs=-1))
         self.logger      = logger
+        self.exploration_rate = self.exploration_max
 
     def remember(self, state : dict, action : str, next_state : dict, events : List[str], game_over : bool):
         self.transitions.append([self.state_to_features(state), action, self.state_to_features(next_state), reward_from_events(self, events), game_over])
 
     def propose_action(self, game_state : dict):
         state = self.state_to_features(game_state)
+
+        #Plot current state of game
+        self.logger.debug(f'Current state: {state}')
+
         # Exploration vs exploitation
         # Epsilon - Greedy - Policy with Epsilon = 0.05
-        if self.is_training and random.random() < self.epsilon:
+        if self.is_training and random.random() < self.exploration_rate:
             self.logger.debug("Choosing action purely at random.")
         # 80%: walk in any direction. 10% wait. 10% bomb.
-            return np.random.choice(self.actions, p=[.2, .2, .2, .2, .1, .1])
+            return np.random.choice(self.actions, p=[.2, .2, .2, .2, .2, .0])
 
         if self.is_fit:
             self.logger.debug(f'Predict q value array in step {game_state["step"]}')
             q_values = self.model.predict(state.reshape(1, -1))
         else:
             self.logger.debug(f'Initialised q value array in step {game_state["step"]}')
-            q_values = np.zeros(len(self.
-            actions)).reshape(1, -1)
+            q_values = np.zeros(len(self.actions)).reshape(1, -1)
 
         self.logger.debug(f'Propose action with a q value of {np.max(q_values[0])}')
 
@@ -76,30 +82,29 @@ class QLearner:
 
         
         #Sample random batch of experiences
-        #number_of_samples = self.transitions.shape[0]
-        #idx = np.random.choice(number_of_samples, self.batch_size, replace=False)
+        batch = random.sample(self.transitions, self.batch_size)
         X = []
         targets = []
 
-
-
         #Iterate through batch and generate training data
-        for state, action, next_state, reward, game_over in self.transitions:
+        for state, action, next_state, reward, game_over in batch:
             q_update = reward
-            q_values = np.zeros(len(self.actions)).reshape(1, -1)
-
+                
             if self.is_fit:
-                self.logger.debug(f'Model fit before updating Q value.')
+                if not game_over:
+                    q_update += self.gamma * np.amax(self.model.predict(next_state.reshape(1, -1))[0])
+                #self.logger.debug(f'Model fit before updating Q value.')
 
                 #predict takes n_samples times n_features as argument
                 #therefore we need to reshape
-                if not game_over:
-                    q_update += self.gamma * np.amax(self.model.predict(next_state.reshape(1, -1))[0])
                 q_values  = self.model.predict(state.reshape(1, -1))
+            
+            else:
+                q_values = np.ones(len(self.actions)).reshape(1, -1) * 100
             
             action_id = self.action_id[action]
                 
-            self.logger.debug(f'Reward {reward}, Q value = {q_values[0][action_id]} before and Q = {q_update} after update.')
+            self.logger.debug(f'Choosing action {action} we obtained reward {reward} and Q value = {q_values[0][action_id]} changed to Q = {q_update} after update in given state.')
 
             q_values[0][action_id] = q_update
 
@@ -111,6 +116,8 @@ class QLearner:
         #targets: n_samples, n_actions
         self.model.fit(X, targets) 
         self.is_fit = True
+        self.exploration_rate *= self.exploration_decay
+        self.exploration_rate = max(self.exploration_min, self.exploration_rate)
 
     def state_to_features(self, game_state: dict) -> np.array:
         """
@@ -130,14 +137,47 @@ class QLearner:
         if game_state is None:
             return None
 
-        features = game_state['field']
-
-        for coin in game_state['coins']:
-            features[coin[0]][coin[1]] = 2
+        #First four entries indicate whether player can walk left, right, up or down
+        #Next two entries indicate x- and y- distance to nearest coin
+        #Last two entries indicate direction to nearest coin
+        features = np.zeros(8)
 
         self_position = game_state['self'][3]
-        features[self_position[0]][self_position[1]] = 3
+        field = game_state['field']
+        coins = game_state['coins']
 
+        if field[self_position[0] - 1][self_position[1]] == 0:
+            features[0] = 1
+
+        if field[self_position[0] + 1][self_position[1]] == 0:
+            features[1] = 1
+
+        if field[self_position[0]][self_position[1] - 1] == 0:
+            features[2] = 1
+
+        if field[self_position[0]][self_position[1] + 1] == 0:
+            features[3] = 1
+
+        coin_distances = []
+        
+        for i in range(len(coins)):
+            coin_distances.append((coins[i][0] - self_position[0])**2 + (coins[i][1] - self_position[1])**2)
+
+        idx = np.argmin(coin_distances)
+
+        #dist = (coins[idx][0] - self_position[0])**2 + (coins[idx][1] - self_position[1])**2
+        dx = coins[idx][0] - self_position[0]
+        dy = coins[idx][1] - self_position[1]
+        features[4] = dx
+        features[5] = dy
+        features[6] = np.sign(dx)
+        features[7] = np.sign(dy)
+
+        #for coin in game_state['coins']:
+        #    features[coin[0]][coin[1]] = 2
+
+        #features[self_position[0]][self_position[1]] = 3
+        
         #nb_classes = 5 # -1,0,1 for stone walls, free tiles, crates, 2 for coins, 3 for the agent
 
         #one_hot_features = np.eye(nb_classes)[features.flatten()]
@@ -145,17 +185,13 @@ class QLearner:
         # For example, you could construct several channels of equal shape, ...
         #coins = game_state["coins"]
         #
-        #coin_distances = []
-        
-        #for i in range(len(coins)):
-        #    coin_distances.append((coins[i][0] - self_position[0])**2 + (coins[i][1] - self_position[1])**2)
-
+      
         #channels = []
         #channels.append(coin_distances)
         # concatenate them as a feature tensor (they must have the same shape), ...
         #stacked_channels = np.stack(channels)
         # and return them as a vector
-        return features.flatten()#one_hot_features#stacked_channels.reshape(-1)
+        return features#one_hot_features.flatten()#stacked_channels.reshape(-1)
 
 
 
@@ -232,12 +268,12 @@ def reward_from_events(self, events: List[str]) -> int:
     """
     game_rewards = {
         e.COIN_COLLECTED: 100,
-        e.MOVED_DOWN: -0.25,
-        e.MOVED_LEFT: -0.25,
-        e.MOVED_UP: -0.25,
-        e.MOVED_RIGHT: -0.25,
-        e.WAITED: -0.5,
-        e.INVALID_ACTION: -2,
+        e.MOVED_DOWN: -0.2,
+        e.MOVED_LEFT: -0.2,
+        e.MOVED_UP: -0.2,
+        e.MOVED_RIGHT: -0.2,
+        e.WAITED: -1,
+        e.INVALID_ACTION: -5,
         e.KILLED_SELF: -300
         #Kill player 100
         #Break wall 30
