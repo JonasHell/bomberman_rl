@@ -1,22 +1,136 @@
 import pickle
 import random
+import numpy as np
 from collections import namedtuple, deque
 from typing import List
 
+from sklearn.multioutput import MultiOutputRegressor
+from lightgbm import LGBMRegressor
+
 import events as e
-from .callbacks import state_to_features
 
 # This is only an example!
 Transition = namedtuple('Transition',
                         ('state', 'action', 'next_state', 'reward'))
 
 # Hyper parameters -- DO modify
-TRANSITION_HISTORY_SIZE = 3  # keep only ... last transitions
 RECORD_ENEMY_TRANSITIONS = 1.0  # record enemy transitions with probability ...
-DISCOUNT_FACTOR = 0.95
-
 # Events
 COIN_EVENT = "COIN_COLLECTED"
+
+class QLearner:
+    alpha: float = 0.1  #Learning rate for Q function
+    gamma: float = 0.95 #Punishes expectation values in fucture
+    memory_size: int = 1000
+    batch_size: int = 30
+    exploration_rate: float = 0.95
+    epsilon: float = 0.3
+    is_fit: bool = False
+    is_training: bool = True
+    actions: List[str] = ['UP', 'RIGHT', 'DOWN', 'LEFT', 'WAIT', 'BOMB']
+
+    def __init__(self):
+        self.transitions = deque(maxlen=self.memory_size)
+        self.model       = MultiOutputRegressor(LGBMRegressor(n_estimators=100, n_jobs=-1))
+
+    def remember(self, state : dict, action : str, next_state : dict, events : List[str]):
+        self.transitions.append([self.state_to_features(state), action, self.state_to_features(next_state), reward_from_events(self, events)])
+
+    def propose_action(self, game_state : dict):
+        state = self.state_to_features(game_state)
+        # Exploration vs exploitation
+        # Epsilon - Greedy - Policy with Epsilon = 0.05
+        if self.is_training and random.random() < self.epsilon:
+            #context.logger.debug("Choosing action purely at random.")
+        # 80%: walk in any direction. 10% wait. 10% bomb.
+            return np.random.choice(self.actions, p=[.2, .2, .2, .2, .1, .1])
+
+        if self.is_fit:
+            q_values = self.model.predict(state.reshape(1, -1))
+        else:
+            q_values = np.zeros(len(self.actions)).reshape(1, -1)
+
+        return self.actions[np.argmax(q_values[0])]
+
+    def experience_replay(self):
+        #Check whether there are enough instances in experience buffer
+        if len(self.transitions) < self.batch_size:
+            return
+        
+        #Sample random batch of experiences
+        #number_of_samples = self.transitions.shape[0]
+        #idx = np.random.choice(number_of_samples, self.batch_size, replace=False)
+        X = []
+        targets = []
+
+        #Iterate through batch and generate training data
+        for state, action, next_state, reward in self.transitions:
+            q_update = reward
+            q_values = np.zeros(len(self.actions)).reshape(1, -1)
+
+            if self.is_fit:
+                #predict takes n_samples times n_features as argument
+                #therefore we need to reshape
+                q_update += self.gamma * np.amax(self.model.predict(next_state.reshape(1, -1))[0])
+                q_values  = self.model.predict(state.reshape(1, -1))
+            
+            action_id = np.where(self.actions == action)
+            q_values[0][action_id] = q_update
+
+            X.append(state)
+            targets.append(q_values[0])
+
+        #Fit model using training data
+        #X: n_samples, n_features
+        #targets: n_samples, n_actions
+        self.model.fit(X, targets) 
+        self.is_fit = True
+
+    def state_to_features(self, game_state: dict) -> np.array:
+        """
+        *This is not a required function, but an idea to structure your code.*
+
+        Converts the game state to the input of your model, i.e.
+        a feature vector.
+
+        You can find out about the state of the game environment via game_state,
+        which is a dictionary. Consult 'get_state_for_agent' in environment.py to see
+        what it contains.
+
+        :param game_state:  A dictionary describing the current game board.
+        :return: np.array
+        """
+        # This is the dict before the game begins and after it ends
+        if game_state is None:
+            return None
+
+        features = game_state['field']
+
+        for coin in game_state['coins']:
+            features[coin[0]][coin[1]] = 2
+
+        self_position = game_state['self'][3]
+        features[self_position[0]][self_position[1]] = 3
+
+        #nb_classes = 5 # -1,0,1 for stone walls, free tiles, crates, 2 for coins, 3 for the agent
+
+        #one_hot_features = np.eye(nb_classes)[features.flatten()]
+
+        # For example, you could construct several channels of equal shape, ...
+        #coins = game_state["coins"]
+        #
+        #coin_distances = []
+        
+        #for i in range(len(coins)):
+        #    coin_distances.append((coins[i][0] - self_position[0])**2 + (coins[i][1] - self_position[1])**2)
+
+        #channels = []
+        #channels.append(coin_distances)
+        # concatenate them as a feature tensor (they must have the same shape), ...
+        #stacked_channels = np.stack(channels)
+        # and return them as a vector
+        return features.flatten()#one_hot_features#stacked_channels.reshape(-1)
+
 
 
 def setup_training(self):
@@ -27,12 +141,6 @@ def setup_training(self):
 
     :param self: This object is passed to all callbacks and you can set arbitrary values.
     """
-    # Example: Setup an array that will note transition tuples
-    # (s, a, r, s')
-    self.transitions = deque(maxlen=TRANSITION_HISTORY_SIZE)
-    self.discount = DISCOUNT_FACTOR
-    self.q = np.random()
-
 
 def game_events_occurred(self, old_game_state: dict, self_action: str, new_game_state: dict, events: List[str]):
     """
@@ -54,14 +162,11 @@ def game_events_occurred(self, old_game_state: dict, self_action: str, new_game_
     self.logger.debug(f'Encountered game event(s) {", ".join(map(repr, events))} in step {new_game_state["step"]}')
 
     # Idea: Add your own events to hand out rewards
-    if ...:
-        events.append(PLACEHOLDER_EVENT)
-
-    # state_to_features is defined in callbacks.py
-    self.transitions.append(Transition(state_to_features(old_game_state), self_action, state_to_features(new_game_state), reward_from_events(self, events)))
-
-    np.linalg.lstsq(transitions[-1]['state'])
-
+    #if ...:
+        #events.append(PLACEHOLDER_EVENT)
+    if(old_game_state != None):
+        self.qlearner.remember(old_game_state, self_action, new_game_state, events)
+        self.qlearner.experience_replay()
 
 def end_of_round(self, last_game_state: dict, last_action: str, events: List[str]):
     """
@@ -76,11 +181,13 @@ def end_of_round(self, last_game_state: dict, last_action: str, events: List[str
     :param self: The same object that is passed to all of your callbacks.
     """
     self.logger.debug(f'Encountered event(s) {", ".join(map(repr, events))} in final step')
-    self.transitions.append(Transition(state_to_features(last_game_state), last_action, None, reward_from_events(self, events)))
+
+    #self.qlearner.remember(last_game_state, self_action, new_game_state, events)
+    #self.qlearner.experience_replay()
 
     # Store the model
     with open("my-saved-model.pt", "wb") as file:
-        pickle.dump(self.model, file)
+        pickle.dump(self.qlearner, file)
 
 
 def reward_from_events(self, events: List[str]) -> int:
@@ -92,6 +199,11 @@ def reward_from_events(self, events: List[str]) -> int:
     """
     game_rewards = {
         e.COIN_COLLECTED: 100,
+        e.MOVED_DOWN: -0.25,
+        e.MOVED_LEFT: -0.25,
+        e.MOVED_UP: -0.25,
+        e.MOVED_RIGHT: -0.25,
+        e.WAITED: -0.5,
         e.INVALID_ACTION: -2,
         e.KILLED_SELF: -300
         #Kill player 100
