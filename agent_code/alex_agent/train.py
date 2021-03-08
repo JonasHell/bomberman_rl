@@ -11,7 +11,7 @@ import events as e
 
 # This is only an example!
 Transition = namedtuple('Transition',
-                        ('state', 'action', 'next_state', 'reward'))
+                        ('state', 'action', 'next_state', 'reward', 'game_over'))
 
 # Hyper parameters -- DO modify
 RECORD_ENEMY_TRANSITIONS = 1.0  # record enemy transitions with probability ...
@@ -22,40 +22,58 @@ class QLearner:
     alpha: float = 0.1  #Learning rate for Q function
     gamma: float = 0.95 #Punishes expectation values in fucture
     memory_size: int = 1000
-    batch_size: int = 30
+    batch_size: int = 5
     exploration_rate: float = 0.95
     epsilon: float = 0.3
     is_fit: bool = False
     is_training: bool = True
     actions: List[str] = ['UP', 'RIGHT', 'DOWN', 'LEFT', 'WAIT', 'BOMB']
+    action_id: dict = {
+        'UP': 0,
+        'RIGHT': 1,
+        'DOWN': 2,
+        'LEFT': 3,
+        'WAIT': 4,
+        'BOMB': 5
+    }
 
-    def __init__(self):
+    def __init__(self, logger):
         self.transitions = deque(maxlen=self.memory_size)
         self.model       = MultiOutputRegressor(LGBMRegressor(n_estimators=100, n_jobs=-1))
+        self.logger      = logger
 
-    def remember(self, state : dict, action : str, next_state : dict, events : List[str]):
-        self.transitions.append([self.state_to_features(state), action, self.state_to_features(next_state), reward_from_events(self, events)])
+    def remember(self, state : dict, action : str, next_state : dict, events : List[str], game_over : bool):
+        self.transitions.append([self.state_to_features(state), action, self.state_to_features(next_state), reward_from_events(self, events), game_over])
 
     def propose_action(self, game_state : dict):
         state = self.state_to_features(game_state)
         # Exploration vs exploitation
         # Epsilon - Greedy - Policy with Epsilon = 0.05
         if self.is_training and random.random() < self.epsilon:
-            #context.logger.debug("Choosing action purely at random.")
+            self.logger.debug("Choosing action purely at random.")
         # 80%: walk in any direction. 10% wait. 10% bomb.
             return np.random.choice(self.actions, p=[.2, .2, .2, .2, .1, .1])
 
         if self.is_fit:
+            self.logger.debug(f'Predict q value array in step {game_state["step"]}')
             q_values = self.model.predict(state.reshape(1, -1))
         else:
-            q_values = np.zeros(len(self.actions)).reshape(1, -1)
+            self.logger.debug(f'Initialised q value array in step {game_state["step"]}')
+            q_values = np.zeros(len(self.
+            actions)).reshape(1, -1)
+
+        self.logger.debug(f'Propose action with a q value of {np.max(q_values[0])}')
 
         return self.actions[np.argmax(q_values[0])]
 
     def experience_replay(self):
         #Check whether there are enough instances in experience buffer
         if len(self.transitions) < self.batch_size:
+            self.logger.debug("Experience buffer still insufficient for experience replay")
             return
+        else:
+            self.logger.debug(f'{len(self.transitions)} in experience buffer')
+
         
         #Sample random batch of experiences
         #number_of_samples = self.transitions.shape[0]
@@ -63,18 +81,26 @@ class QLearner:
         X = []
         targets = []
 
+
+
         #Iterate through batch and generate training data
-        for state, action, next_state, reward in self.transitions:
+        for state, action, next_state, reward, game_over in self.transitions:
             q_update = reward
             q_values = np.zeros(len(self.actions)).reshape(1, -1)
 
             if self.is_fit:
+                self.logger.debug(f'Model fit before updating Q value.')
+
                 #predict takes n_samples times n_features as argument
                 #therefore we need to reshape
-                q_update += self.gamma * np.amax(self.model.predict(next_state.reshape(1, -1))[0])
+                if not game_over:
+                    q_update += self.gamma * np.amax(self.model.predict(next_state.reshape(1, -1))[0])
                 q_values  = self.model.predict(state.reshape(1, -1))
             
-            action_id = np.where(self.actions == action)
+            action_id = self.action_id[action]
+                
+            self.logger.debug(f'Reward {reward}, Q value = {q_values[0][action_id]} before and Q = {q_update} after update.')
+
             q_values[0][action_id] = q_update
 
             X.append(state)
@@ -164,9 +190,16 @@ def game_events_occurred(self, old_game_state: dict, self_action: str, new_game_
     # Idea: Add your own events to hand out rewards
     #if ...:
         #events.append(PLACEHOLDER_EVENT)
-    if(old_game_state != None):
-        self.qlearner.remember(old_game_state, self_action, new_game_state, events)
-        self.qlearner.experience_replay()
+    if old_game_state == None:
+        self.logger.debug(f'First game state initialised in step {new_game_state["step"]}')
+        return
+
+    if new_game_state == None:
+        self.logger.debug(f'No new game state initialised after step {old_game_state["step"]}')
+        return
+
+    self.qlearner.remember(old_game_state, self_action, new_game_state, events, game_over = False)
+    self.qlearner.experience_replay()
 
 def end_of_round(self, last_game_state: dict, last_action: str, events: List[str]):
     """
@@ -182,8 +215,8 @@ def end_of_round(self, last_game_state: dict, last_action: str, events: List[str
     """
     self.logger.debug(f'Encountered event(s) {", ".join(map(repr, events))} in final step')
 
-    #self.qlearner.remember(last_game_state, self_action, new_game_state, events)
-    #self.qlearner.experience_replay()
+    self.qlearner.remember(last_game_state, last_action, None, events, game_over = True)
+    self.qlearner.experience_replay()
 
     # Store the model
     with open("my-saved-model.pt", "wb") as file:

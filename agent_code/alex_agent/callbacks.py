@@ -23,12 +23,12 @@ def setup(self):
     """
     if self.train or not os.path.isfile("my-saved-model.pt"):
         self.logger.info("Setting up model from scratch.")
-        self.qlearner   = QLearner()
-        self.qlearner.logger = self.logger
+        self.qlearner   = QLearner(self.logger)
     else:
         self.logger.info("Loading model from saved state.")
         with open("my-saved-model.pt", "rb") as file:
             self.qlearner = pickle.load(file)
+            self.qlearner.is_training = False
 
 
 def act(self, game_state: dict) -> str:
@@ -41,5 +41,4 @@ def act(self, game_state: dict) -> str:
     :return: The action to take as a string.
     """
     
-    self.logger.debug("Querying model for action.")
     return self.qlearner.propose_action(game_state)
