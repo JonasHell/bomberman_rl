@@ -2,13 +2,12 @@ import pickle
 import random
 import numpy as np
 from collections import namedtuple, deque
+from  sklearn  import  decomposition
 from typing import List
-import errno
-import os
-from datetime import datetime
 
-from sklearn.multioutput import MultiOutputRegressor
-from lightgbm import LGBMRegressor
+from keras.models import Sequential
+from keras.layers import Dense
+from keras.optimizers import Adam
 
 import events as e
 import matplotlib.pyplot as plt
@@ -46,10 +45,10 @@ def create_folder():
     return mydir
 
 class QLearner:
-    alpha: float = 0.8  #Learning rate for Q function
+    alpha: float = 0.001  #Learning rate for Q function
     gamma: float = 0.95 #Punishes expectation values in fucture
-    memory_size: int = 5000
-    batch_size: int = 300
+    memory_size: int = 100000
+    batch_size: int = 10
     exploration_decay: float = 0.96#0.98
     exploration_max: float = 1.0#1.0
     exploration_min: float = 0.05
@@ -68,14 +67,23 @@ class QLearner:
 
     def __init__(self, logger):
         self.transitions = deque(maxlen=self.memory_size)
-        self.model       = MultiOutputRegressor(LGBMRegressor(n_estimators=500, n_jobs=4))
         self.logger      = logger
         self.exploration_rate = self.exploration_max
+        print("Initialise network")
 
-    def remember(self, state : np.array, action : str, next_state : np.array, reward: float , game_over : bool):
-        #Store cumulative reward for performance assessment
-        self.rewards.append(self.rewards[-1] + reward) 
-        self.transitions.append([state, action, next_state, reward, game_over])
+        #self.model       = MultiOutputRegressor(LGBMRegressor(n_estimators=100, n_jobs=-1))
+        self.model = Sequential()
+        self.model.add(Dense(24, input_shape=(1445,), activation="relu"))
+        self.model.add(Dense(24, activation="relu"))
+        self.model.add(Dense(6, activation="linear"))
+        self.model.compile(loss="mse", optimizer=Adam(lr=self.alpha))
+        print("Network initialised")
+        
+
+    def remember(self, state : dict, action : str, next_state : dict, events : List[str], game_over : bool):
+        reward = reward_from_events(self, events)
+        self.rewards.append(self.rewards[-1] + reward) #Store cumulative reward for performance assessment
+        self.transitions.append([self.state_to_features(state), action, self.state_to_features(next_state), reward, game_over])
 
     def propose_action(self, game_state : dict):
         state = self.state_to_features(game_state)
@@ -97,12 +105,10 @@ class QLearner:
             self.logger.debug(f'Initialised q value array in step {game_state["step"]}')
             q_values = np.zeros(len(self.actions)).reshape(1, -1)
 
-        proposed_action = self.actions[np.argmax(q_values[0])]
-
         self.logger.info(f'Current state {state}')
-        self.logger.info(f'Choosing {proposed_action} where {list(zip(self.actions, q_values[0]))}')
+        self.logger.info(f'Choosing action where {list(zip(self.actions, q_values[0]))}')
 
-        return proposed_action
+        return self.actions[np.argmax(q_values[0])]
 
     def experience_replay(self):
         #Check whether there are enough instances in experience buffer
@@ -132,7 +138,7 @@ class QLearner:
                 q_values  = self.model.predict(state.reshape(1, -1))
             
             else:
-                q_values = np.ones(len(self.actions)).reshape(1, -1) * 35
+                q_values = np.ones(len(self.actions)).reshape(1, -1) * 10
             
             action_id = self.action_id[action]
                 
@@ -140,13 +146,15 @@ class QLearner:
 
             q_values[0][action_id] = (1 - self.alpha) * q_values[0][action_id] + self.alpha * q_update
 
-            X.append(state)
-            targets.append(q_values[0])
+            self.model.fit(state.reshape(1, -1), q_values, verbose = 0) 
+
+            #X.append(state)
+            #targets.append(q_values[0])
 
         #Fit model using training data
         #X: n_samples, n_features
         #targets: n_samples, n_actions
-        self.model.fit(X, targets) 
+        #self.model.fit(X, targets, verbose = 0) 
         self.is_fit = True
         self.exploration_rate *= self.exploration_decay
         self.exploration_rate = max(self.exploration_min, self.exploration_rate)
@@ -169,6 +177,28 @@ class QLearner:
         if game_state is None:
             return None
 
+        
+        features = np.copy(game_state['field'])
+
+        for coin in game_state['coins']:
+            features[coin[0]][coin[1]] = 2
+
+        self_position = game_state['self'][3]
+
+        features[self_position[0]][self_position[1]] = 3
+
+        nb_classes = 5 # -1,0,1 for stone walls, free tiles, crates, 2 for coins, 3 for the agent
+
+        one_hot_features = np.eye(nb_classes)[features.flatten()]
+        return one_hot_features.flatten()
+
+        """
+        model = decomposition.NMF(n_components=10, init='random', random_state=0)
+        W = model.fit_transform(X)
+        H = model.components_
+        nmf_vec = H[0:n]
+        """
+        """
         #First four entries indicate whether player can walk left, right, up or down
         #Next two entries indicate x- and y- distance to nearest coin
         #Last two entries indicate direction to nearest coin
@@ -196,7 +226,6 @@ class QLearner:
             coin_distances.append((coins[i][0] - self_position[0])**2 + (coins[i][1] - self_position[1])**2)
 
         idx = np.argmin(coin_distances)
-        idx = 0
 
         #dist = (coins[idx][0] - self_position[0])**2 + (coins[idx][1] - self_position[1])**2
         dx = coins[idx][0] - self_position[0]
@@ -211,9 +240,7 @@ class QLearner:
 
         #features[self_position[0]][self_position[1]] = 3
         
-        #nb_classes = 5 # -1,0,1 for stone walls, free tiles, crates, 2 for coins, 3 for the agent
-
-        #one_hot_features = np.eye(nb_classes)[features.flatten()]
+        
 
         # For example, you could construct several channels of equal shape, ...
         #coins = game_state["coins"]
@@ -225,6 +252,7 @@ class QLearner:
         #stacked_channels = np.stack(channels)
         # and return them as a vector
         return features#one_hot_features.flatten()#stacked_channels.reshape(-1)
+        """
 
 
 
@@ -260,9 +288,11 @@ def game_events_occurred(self, old_game_state: dict, self_action: str, new_game_
     old_f = self.qlearner.state_to_features(old_game_state)
     new_f = self.qlearner.state_to_features(new_game_state)
 
+    """
     if old_f is not None:
         if (new_f[4] + new_f[5]) + 0.2 < (old_f[4] + old_f[5]):
             events.append(APPROACH_COIN_EVENT)
+    """
 
     if old_game_state == None:
         self.logger.debug(f'First game state initialised in step {new_game_state["step"]}')
@@ -272,9 +302,8 @@ def game_events_occurred(self, old_game_state: dict, self_action: str, new_game_
         self.logger.debug(f'No new game state initialised after step {old_game_state["step"]}')
         return
 
-    reward = reward_from_events(self, events)
 
-    self.qlearner.remember(old_f, self_action, new_f, reward, game_over = False)
+    self.qlearner.remember(old_game_state, self_action, new_game_state, events, game_over = False)
     self.qlearner.experience_replay()
 
 def end_of_round(self, last_game_state: dict, last_action: str, events: List[str]):
@@ -291,10 +320,7 @@ def end_of_round(self, last_game_state: dict, last_action: str, events: List[str
     """
     self.logger.debug(f'Encountered event(s) {", ".join(map(repr, events))} in final step')
 
-    last_f = self.qlearner.state_to_features(last_game_state)        
-    reward = reward_from_events(self, events)
-
-    self.qlearner.remember(last_f, last_action, None, reward, game_over = True)
+    self.qlearner.remember(last_game_state, last_action, None, events, game_over = True)
     self.qlearner.experience_replay()
 
     # Store the model in general directory
@@ -305,19 +331,19 @@ def end_of_round(self, last_game_state: dict, last_action: str, events: List[str
     #Last round assuming that we train for ten rounds
     if last_game_state["round"] == 10:
         #Create new folder with time step for test run
-        directory = create_folder()
+        #directory = create_folder()
 
         #Store cumulative rewards
-        np.savetxt(directory + "/rewards.txt", self.qlearner.rewards, fmt='%.3f')
+        np.savetxt("rewards.txt", self.qlearner.rewards, fmt='%.3f')
 
         #Create plot for cumulative rewards
-        x = np.arange(len(self.qlearner.rewards))
-        plt.plot(x, self.qlearner.rewards)
-        plt.title("Cumulative rewards")
-        plt.savefig(directory + "/rewards.png")
+        #x = np.arange(len(self.qlearner.rewards))
+        #plt.plot(x, self.qlearner.rewards)
+        #plt.title("Cumulative rewards")
+        #plt.savefig(directory + "/rewards.png")
         
         # Store the model in folder with timestamp for reference
-        with open(directory + "/my-saved-model.pt", "wb") as file:
+        with open("my-saved-model.pt", "wb") as file:
             pickle.dump(self.qlearner, file)
 
 
@@ -329,15 +355,14 @@ def reward_from_events(self, events: List[str]) -> int:
     certain behavior.
     """
     game_rewards = {
-        e.COIN_COLLECTED: 30,
+        e.COIN_COLLECTED: 100,
         e.MOVED_DOWN: -1,
         e.MOVED_LEFT: -1,
         e.MOVED_UP: -1,
         e.MOVED_RIGHT: -1,
-        e.BOMB_DROPPED: -30,
-        e.WAITED: -1,
-        e.INVALID_ACTION: -2,
-        e.KILLED_SELF: -20,
+        e.WAITED: -2,
+        e.INVALID_ACTION: -5,
+        e.KILLED_SELF: -300,
         APPROACH_COIN_EVENT: 1
         #Kill player 100
         #Break wall 30
