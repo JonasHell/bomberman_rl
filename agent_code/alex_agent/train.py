@@ -31,6 +31,7 @@ features = ["lf", "rf", "uf", "df", "xc", "yc", "cxd", "cyd"]
 RECORD_ENEMY_TRANSITIONS = 1.0  # record enemy transitions with probability ...
 # Events
 APPROACH_COIN_EVENT = "APPROACH_COIN"
+ALREADY_VISITED_EVENT = "ALREADY_VISITED"
 
 
 #Create folder with timestamp of current run
@@ -46,13 +47,14 @@ def create_folder():
     return mydir
 
 class QLearner:
-    alpha: float = 0.8  #Learning rate for Q function
+    alpha: float = 0.5  #Lower alpha means slower but more stable convergence
+    learning_rate: float = 0.1
     gamma: float = 0.95 #Punishes expectation values in fucture
     memory_size: int = 5000
-    batch_size: int = 300
+    batch_size: int = 500
     exploration_decay: float = 0.96#0.98
     exploration_max: float = 1.0#1.0
-    exploration_min: float = 0.05
+    exploration_min: float = 0.1
     rewards: List[float] = [0]
     is_fit: bool = False
     is_training: bool = True
@@ -68,7 +70,7 @@ class QLearner:
 
     def __init__(self, logger):
         self.transitions = deque(maxlen=self.memory_size)
-        self.model       = MultiOutputRegressor(LGBMRegressor(n_estimators=500, n_jobs=4))
+        self.model       = MultiOutputRegressor(LGBMRegressor(n_estimators=100, n_jobs=4))
         self.logger      = logger
         self.exploration_rate = self.exploration_max
 
@@ -103,6 +105,95 @@ class QLearner:
         self.logger.info(f'Choosing {proposed_action} where {list(zip(self.actions, q_values[0]))}')
 
         return proposed_action
+
+    def linear_propose_action(self, game_state):
+
+        state = self.state_to_features(game_state)
+
+        #Plot current state of game
+        self.logger.debug(f'Current state: {list(zip(features, state))}')
+
+        # Exploration vs exploitation
+        # Epsilon - Greedy - Policy with Epsilon = 0.05
+        if self.is_training:
+            if random.random() < self.exploration_rate:
+                self.logger.debug("Choosing action purely at random.")
+                # 80%: walk in any direction. 10% wait. 10% bomb.
+                return np.random.choice(self.actions, p=[.2, .2, .2, .2, .2, .0])
+        else:
+            if random.random() < self.exploration_min:
+                self.logger.debug("Choosing action purely at random.")
+                # 80%: walk in any direction. 10% wait. 10% bomb.
+                return np.random.choice(self.actions, p=[.2, .2, .2, .2, .2, .0])
+
+        
+        
+        if self.is_fit:
+            q_values = state.reshape(1, -1) @ self.beta
+        else:
+            self.logger.debug(f'Initialised q value array in step {game_state["step"]}')
+            q_values = np.zeros(len(self.actions)).reshape(1, -1)
+
+        proposed_action = self.actions[np.argmax(q_values[0])]
+        
+        return proposed_action
+
+
+    def linear_experience_replay(self):
+        if len(self.transitions) < self.batch_size:
+            self.logger.debug("Experience buffer still insufficient for experience replay")
+            return
+        else:
+            self.logger.debug(f'{len(self.transitions)} in experience buffer')
+
+
+        #Sample random batch of experiences
+        batch = random.sample(self.transitions, self.batch_size)
+
+        X = [[]] * len(self.actions)
+        targets_a = [[]] * len(self.actions)
+        
+
+        #Iterate through batch and generate training data
+        for state, action, next_state, reward, game_over in batch:
+            q_update = reward
+            action_id = self.action_id[action]
+                
+            if self.is_fit:
+                if not game_over:
+                    q_update += self.gamma * np.amax(next_state.reshape(1, -1) @ beta)
+                #self.logger.debug(f'Model fit before updating Q value.')
+
+                #predict takes n_samples times n_features as argument
+                #therefore we need to reshape
+                q_values  = state.reshape(1, -1) @ beta
+            
+            else:
+                q_values = np.ones(len(self.actions)).reshape(1, -1) * 35
+                self.beta        = np.zeros((len(state), len(self.actions)))
+            
+                
+            #self.logger.debug(f'Choosing action {action} we obtained reward {reward} and Q value = {q_values[0][action_id]} changed to Q = {q_update} after update in given state.')
+
+            q_values[0][action_id] = (1 - self.alpha) * q_values[0][action_id] + self.alpha * q_update
+
+            X[action_id].append(state)
+            targets[action_id].append(q_values[0])
+
+        #Fit model using training data
+        #X: n_samples, n_features
+        #targets: n_samples, n_actions
+
+        for i in range(len(actions)):
+            update = 0
+            for j in range(len(X[i])):
+                update += X[i][j] * (targets[i][j] - X[i][j] @ beta[:, i])
+            beta[:, i] += self.learning_rate /  len(X[i]) * update
+            
+        self.is_fit = True
+        self.exploration_rate *= self.exploration_decay
+        self.exploration_rate = max(self.exploration_min, self.exploration_rate)
+
 
     def experience_replay(self):
         #Check whether there are enough instances in experience buffer
@@ -190,21 +281,31 @@ class QLearner:
         if field[self_position[0]][self_position[1] + 1] == 0:
             features[3] = 1
 
-        coin_distances = []
         
-        for i in range(len(coins)):
-            coin_distances.append((coins[i][0] - self_position[0])**2 + (coins[i][1] - self_position[1])**2)
+        if len(coins) > 0:
 
-        idx = np.argmin(coin_distances)
-        idx = 0
+            distances = []
 
-        #dist = (coins[idx][0] - self_position[0])**2 + (coins[idx][1] - self_position[1])**2
-        dx = coins[idx][0] - self_position[0]
-        dy = coins[idx][1] - self_position[1]
-        features[4]  = np.abs(dx)
-        features[5] =  np.abs(dy)
-        features[6] = np.sign(dx)
-        features[7] = np.sign(dy)
+            for coin in coins:
+                distances.append((coin[0] - self_position[0])**2 + (coin[1] - self_position[1])**2)
+            
+            idx = np.argmin(distances)
+
+            dx = coins[idx][0] - self_position[0]
+            dy = coins[idx][1] - self_position[1]
+            if dx > 0.2:
+                features[4] = 1
+            if dx < -0.2:
+                features[5] = 1
+            if dy > 0.2:
+                features[6] = 1
+            if dy < -0.2:
+                features[7] = 1
+
+            if features[4] == 0 and features[5] == 0 and features[6] == 0 and features[7] == 0:
+                print("something is wrong here")
+                print(self_position)
+                print(coins)
 
         #for coin in game_state['coins']:
         #    features[coin[0]][coin[1]] = 2
@@ -237,6 +338,12 @@ def setup_training(self):
     :param self: This object is passed to all callbacks and you can set arbitrary values.
     """
 
+    self.step_counter = 0
+    self.steps_before_replay = 4
+    self.num_rounds = 10
+    self.visited = np.zeros((17,17))
+    self.visited_before = np.zeros((17,17))
+
 def game_events_occurred(self, old_game_state: dict, self_action: str, new_game_state: dict, events: List[str]):
     """
     Called once per step to allow intermediate rewards based on game events.
@@ -260,9 +367,18 @@ def game_events_occurred(self, old_game_state: dict, self_action: str, new_game_
     old_f = self.qlearner.state_to_features(old_game_state)
     new_f = self.qlearner.state_to_features(new_game_state)
 
-    if old_f is not None:
-        if (new_f[4] + new_f[5]) + 0.2 < (old_f[4] + old_f[5]):
-            events.append(APPROACH_COIN_EVENT)
+    x = new_game_state["self"][3][0]
+    y = new_game_state["self"][3][1]
+
+    if self.visited_before[x][y] == 1:
+        events.append(ALREADY_VISITED_EVENT)
+
+    self.visited_before = self.visited
+
+    self.visited = np.zeros((17,17))
+    self.visited[x][y] = 1
+
+
 
     if old_game_state == None:
         self.logger.debug(f'First game state initialised in step {new_game_state["step"]}')
@@ -275,7 +391,13 @@ def game_events_occurred(self, old_game_state: dict, self_action: str, new_game_
     reward = reward_from_events(self, events)
 
     self.qlearner.remember(old_f, self_action, new_f, reward, game_over = False)
-    self.qlearner.experience_replay()
+
+    #Only replay experiences every fixed number of steps
+    self.step_counter += 1
+
+    if self.step_counter == self.steps_before_replay:
+        self.qlearner.experience_replay()
+        self.step_counter = 0
 
 def end_of_round(self, last_game_state: dict, last_action: str, events: List[str]):
     """
@@ -297,13 +419,16 @@ def end_of_round(self, last_game_state: dict, last_action: str, events: List[str
     self.qlearner.remember(last_f, last_action, None, reward, game_over = True)
     self.qlearner.experience_replay()
 
+    self.visited = np.zeros((17,17))
+    self.visited_before = np.zeros((17,17))
+
     # Store the model in general directory
     with open("my-saved-model.pt", "wb") as file:
         pickle.dump(self.qlearner, file)
 
     #If training finishes create folder for run
     #Last round assuming that we train for ten rounds
-    if last_game_state["round"] == 10:
+    if last_game_state["round"] == self.num_rounds:
         #Create new folder with time step for test run
         directory = create_folder()
 
@@ -329,16 +454,16 @@ def reward_from_events(self, events: List[str]) -> int:
     certain behavior.
     """
     game_rewards = {
-        e.COIN_COLLECTED: 30,
-        e.MOVED_DOWN: -1,
-        e.MOVED_LEFT: -1,
-        e.MOVED_UP: -1,
-        e.MOVED_RIGHT: -1,
+        e.COIN_COLLECTED: 50,
+        e.MOVED_DOWN: -0.05,
+        e.MOVED_LEFT: -0.05,
+        e.MOVED_UP: -0.05,
+        e.MOVED_RIGHT: -0.05,
+        e.WAITED: -0.05,
+        e.INVALID_ACTION: -0.05,
         e.BOMB_DROPPED: -30,
-        e.WAITED: -1,
-        e.INVALID_ACTION: -2,
         e.KILLED_SELF: -20,
-        APPROACH_COIN_EVENT: 1
+        ALREADY_VISITED_EVENT: -0.05
         #Kill player 100
         #Break wall 30
         #Perform action -1
