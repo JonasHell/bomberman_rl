@@ -114,21 +114,35 @@ def state_to_features(game_state: dict) -> np.array:
 
     # check where bombs are
     # set the fourth entry in the vector to 1
-    # !!!!!!!!!!! hier hab ich es iwie nicht ohne for loop hinbekommen wegen
-    # diesen komischen tupeln
     # discard the time since this can be learned by the model because we
     # use a LSTM network
-    bomb_coords = np.array([bomb[0] for bomb in game_state['bombs']]).T
-    hybrid_vectors[ bomb_coords[0]-1, bomb_coords[1]-1, 3 ] = 1
+    # -> use the remaining time as an input feature
+    bombs = game_state['bombs']
+    n_bombs = len(bombs)
+    bombs = np.asarray(bombs).T
+    xy = np.concatenate(bombs[0])
+    xy = xy.reshape(n_bombs, 2).T
+    t = np.concatenate(bombs[1])
+    hybrid_vectors[xy[0]-1, xy[1]-1, 3 ] = t
+    #x_bomb, y_bomb, t_bomb = np.array([(x, y, t) for (x, y), t in game_state['bombs']]).T
+    #hybrid_vectors[ x_bomb-1, y_bomb-1, 3 ] = t_bomb
 
     # check where fire is
-    # set the fifth entry in the vector to 1
-    hybrid_vectors[ np.where(game_state['explosion_map'][1:-1, 1:-1] > 0), 4 ] = 1
+    # set the fifth entry in the vector to the remaining time of the fire
+    hybrid_vectors.T[4] = game_state['explosion_map'][1:-1, 1:-1]
+    #hybrid_vectors[ np.where(game_state['explosion_map'][1:-1, 1:-1] > 0), 4 ] = 1
 
     # check where players are
-    # set the sixth entry in the vector to 1
-    enemy_coords = np.array([player[3] for player in game_state['others']]).T
-    hybrid_vectors[ enemy_coords[0]-1, enemy_coords[1]-1, 5 ] = 1
+    # set the sixth entry in the vector to 2 if the enemy can place a bomb and 1 otherwise
+    enemies = game_state['others']
+    n_enemies = len(enemies)
+    enemies = np.asarray(enemies).T
+    xy = np.concatenate(enemies[3])
+    xy = xy.reshape(n_enemies, 2).T
+    t = enemies[2].astype(int)
+    hybrid_vectors[ xy[0]-1, xy[1]-1, 5 ] = t+1
+    #enemy_coords = np.array([player[3] for player in game_state['others']]).T
+    #hybrid_vectors[ enemy_coords[0]-1, enemy_coords[1]-1, 5 ] = 1
 
     # flatten 3D array to 1D vector
     hyb_vec = hybrid_vectors.flatten()
@@ -146,7 +160,7 @@ def state_to_features(game_state: dict) -> np.array:
     return stacked_channels.reshape(-1)
     '''
 
-    return hyb_vec
+    return hyb_vec # with length: (15*15*6)+3 = 1353
 
 # wieviele layer? wie groß? sprünge in layer größe okay oder sogar gut?
 # wie baut man lstm layer ein? reicht eins?
