@@ -26,6 +26,10 @@ def setup_training(self):
 
     :param self: This object is passed to all callbacks and you can set arbitrary values.
     """
+    # self.states = 
+    # self.rule_based_agent = 
+    # self.targets =
+
     # Example: Setup an array that will note transition tuples
     # (s, a, r, s')
     self.transitions = deque(maxlen=TRANSITION_HISTORY_SIZE)
@@ -48,6 +52,9 @@ def game_events_occurred(self, old_game_state: dict, self_action: str, new_game_
     :param new_game_state: The state the agent is in now.
     :param events: The events that occurred when going from  `old_game_state` to `new_game_state`
     """
+    # self.states.append()
+    # self.targets.append()
+
     self.logger.debug(f'Encountered game event(s) {", ".join(map(repr, events))} in step {new_game_state["step"]}')
 
     # Idea: Add your own events to hand out rewards
@@ -70,6 +77,24 @@ def end_of_round(self, last_game_state: dict, last_action: str, events: List[str
 
     :param self: The same object that is passed to all of your callbacks.
     """
+    # self.model.train()
+    # target = self.target.totensor
+    # states = self.states.totensor
+    # out = self.model()
+    # criterion = 
+    # loss =
+    # zero_grad
+    # loss.backward
+    # optimizer =
+    # optimizer.step()
+    # loss auf tensorboard schieben bzw. erstmal printen um zu schauen obs läuft
+    # logging?
+    #
+    # self.states = []
+    # self.targets = []
+    # self.model.save()?
+    # self.model = 
+
     self.logger.debug(f'Encountered event(s) {", ".join(map(repr, events))} in final step')
     self.transitions.append(Transition(state_to_features(last_game_state), last_action, None, reward_from_events(self, events)))
 

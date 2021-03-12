@@ -24,7 +24,6 @@ print(coins)
 
 ar = np.array([c[3] for c in coins]).T
 print(ar)
-'''
 
 field = np.random.randint(2, size=25)
 field = field.reshape((5, 5))
@@ -38,3 +37,15 @@ print(field)
 
 print(int(False))
 print(int(True))
+'''
+
+#coins = [('a', 2, True, (1, 1)), ('b', 1, False, (4, 3)), ('c', 0, True, (2, 1))]
+coins = np.random.randint(9, size=49)
+coins = coins.reshape(7, 7)
+print(coins)
+
+matrix = np.zeros((5, 5, 5))
+#print(matrix)
+
+matrix[:, :, 1] = coins[1:-1, 1:-1]
+print(matrix)

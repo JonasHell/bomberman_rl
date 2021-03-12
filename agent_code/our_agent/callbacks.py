@@ -27,6 +27,10 @@ def setup(self):
 
     :param self: This object is passed to all callbacks and you can set arbitrary values.
     """
+    # init model oder lade es von file
+    # self.model = ...
+    # tensorboard?
+
     if self.train or not os.path.isfile("my-saved-model.pt"):
         self.logger.info("Setting up model from scratch.")
         weights = np.random.rand(len(ACTIONS))
@@ -46,6 +50,11 @@ def act(self, game_state: dict) -> str:
     :param game_state: The dictionary that describes everything on the board.
     :return: The action to take as a string.
     """
+    # model.eval()
+    # out = model()
+    # random nötig?
+    # return out
+
     # todo Exploration vs exploitation
     random_prob = .1
     if self.train and random.random() < random_prob:
@@ -76,16 +85,15 @@ def state_to_features(game_state: dict) -> np.array:
         return None
     
     # We want to represent the state as vector.
-    # For each cell on the field we define a vector with 6 entries, each either 0 or 1
-    # [0, 0, 0, 0, 0, 0] --> free
-    # [1, 0, 0, 0, 0, 0] --> stone
-    # [0, 1, 0, 0, 0, 0] --> crate
-    # [0, 0, 1, 0, 0, 0] --> coin
-    # [0, 0, 0, 1, 0, 0] --> bomb
-    # [0, 0, 0, 0, 1, 0] --> fire
-    # [0, 0, 0, 0, 0, 1] --> player
+    # For each cell on the field we define a vector with 5 entries, each either 0 or 1
+    # [0, 0, 0, 0, 0] --> free
+    # [1, 0, 0, 0, 0] --> stone
+    # [0, 1, 0, 0, 0] --> crate
+    # [0, 0, 1, 0, 0] --> coin
+    # [0, 0, 0, 1, 0] --> bomb
+    # [0, 0, 0, 0, 1] --> fire
     # in principle with this encoding multiple cases could happen at the same time
-    # e.g. [0, 0, 0, 1, 0, 1] --> bomb and player
+    # e.g. [0, 0, 0, 1, 1] --> bomb and fire
     # but in our implementation of the game this is not relevant
     # because they are a combination of one-hot and binary map
     # they are called hybrid vectors
@@ -93,7 +101,7 @@ def state_to_features(game_state: dict) -> np.array:
     # initialize empty field
     # note: in the game we have a field of 17x17, but the borders are always
     # stone so we reduce the dimension to 15x15
-    hybrid_vectors = np.zeros((15, 15, 6), dtype=int)
+    hybrid_vectors = np.zeros((15, 15, 5), dtype=int)
     
     # check where there are stones on the field
     # just use the field without the borders (1:-1)
@@ -118,57 +126,53 @@ def state_to_features(game_state: dict) -> np.array:
     # diesen komischen tupeln
     # discard the time since this can be learned by the model because we
     # use a LSTM network
-    bomb_coords = np.array([bomb[0] for bomb in game_state['bombs']]).T
-    hybrid_vectors[ bomb_coords[0]-1, bomb_coords[1]-1, 3 ] = 1
+    bomb_coords = np.array([[bomb[0][0], bomb[0][1], bomb[1]] for bomb in game_state['bombs']]).T
+    hybrid_vectors[ bomb_coords[0]-1, bomb_coords[1]-1, 3 ] = bomb_coords[2]
 
     # check where fire is
     # set the fifth entry in the vector to 1
-    hybrid_vectors[ np.where(game_state['explosion_map'][1:-1, 1:-1] > 0), 4 ] = 1
-
-    # check where players are
-    # set the sixth entry in the vector to 1
-    enemy_coords = np.array([player[3] for player in game_state['others']]).T
-    hybrid_vectors[ enemy_coords[0]-1, enemy_coords[1]-1, 5 ] = 1
+    hybrid_vectors[ :, :, 4 ] = game_state['explosion_map'][1:-1, 1:-1]
 
     # flatten 3D array to 1D vector
     hyb_vec = hybrid_vectors.flatten()
 
+    # add enemy coords and their bomb boolean as additional entries at the end
+    # non-existing enemies have -1 at each position as default
+    for i in range(3):
+        if len(game_state['others']) > i:
+            enemy = game_state['others'][i]
+            hyb_vec = np.append(hyb_vec, [ enemy[3][0], enemy[3][1], int(enemy[2]) ])
+        else:
+            hyb_vec = np.append(hyb_vec, [ -1 , -1 , -1 ])
+
     # add own position and availability of bomb as 3 additional entries at the end
     hyb_vec = np.append(hyb_vec, [ game_state['self'][3][0], game_state['self'][3][1], int(game_state['self'][2]) ])
 
-    '''
-    # For example, you could construct several channels of equal shape, ...
-    channels = []
-    channels.append(...)
-    # concatenate them as a feature tensor (they must have the same shape), ...
-    stacked_channels = np.stack(channels)
-    # and return them as a vector
-    return stacked_channels.reshape(-1)
-    '''
+    return hyb_vec # len(hyb_vec) = (15 x 15 x 5) + (4 x 3) = 1137
 
-    return hyb_vec
 
 # wieviele layer? wie groß? sprünge in layer größe okay oder sogar gut?
 # wie baut man lstm layer ein? reicht eins?
 # tensorboard einbauen
 class OurNeuralNetwork(nn.Module):
-    def __init__(self, input_size=1353):
+    def __init__(self, input_size):
         super(OurNeuralNetwork, self).__init__()
-        self.input_size = input_size
         self.linear1 = nn.Linear(input_size, 2048)
         self.linear2 = nn.Linear(2048, 512)
         self.linear3 = nn.Linear(512, 128)
-        self.lstm = nn.LSTM(128, 128, 2, batch_first=True)
-        self.linear4 = nn.Linear(128, 6)
+        self.linear4 = nn.Linear(128, 32)
+        self.linear5 = nn.Linear(32, 6)
 
-    def forward(self, x, hidden_state, cell_state):
+    def forward(self, x):
         # könnte auch andere activation function nehmen
         out = self.linear1(x)
         out = F.selu(out)
         out = self.linear2(out)
         out = F.selu(out)
         out = self.linear3(out)
-        out = F.selu(out) # macht der SInn vor LSTM?
-        # dimensionen von out noch ändern für lstm?
-        out, (hidden_state, cell_state) = self.lstm(out.unsqueeze(1), (hidden_state, cell_state))
-        
+        out = F.selu(out)
+        out = self.linear4(out)
+        out = F.selu(out)
+        out = self.linear5(out)
+        # out = F.softmax evtl. nicht nötig, weil CrossEntropy das auch anwendet
+        return out
