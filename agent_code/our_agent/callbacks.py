@@ -127,6 +127,17 @@ def state_to_features(game_state: dict) -> np.array:
     bomb_coords = np.array([[bomb[0][0], bomb[0][1], bomb[1]] for bomb in game_state['bombs']]).T
     hybrid_vectors[ bomb_coords[0]-1, bomb_coords[1]-1, 3 ] = bomb_coords[2]
 
+    # vectorized version of above implementation
+    '''
+    bombs = game_state['bombs']
+    n_bombs = len(bombs)
+    bombs = np.asarray(bombs).T
+    bombs_xy = np.concatenate(bombs[0])
+    bombs_xy = bombs_xy.reshape(n_bombs, 2).T
+    bombs_t = np.concatenate(bombs[1])
+    hybrid_vectors[bombs_xy[0]-1, bombs_xy[1]-1, 3 ] = bombs_t
+    '''
+
     # check where fire is
     # set the fifth entry in the vector to 1
     hybrid_vectors[ :, :, 4 ] = game_state['explosion_map'][1:-1, 1:-1]
