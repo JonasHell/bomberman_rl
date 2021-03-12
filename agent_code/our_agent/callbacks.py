@@ -122,8 +122,6 @@ def state_to_features(game_state: dict) -> np.array:
 
     # check where bombs are
     # set the fourth entry in the vector to 1
-    # !!!!!!!!!!! hier hab ich es iwie nicht ohne for loop hinbekommen wegen
-    # diesen komischen tupeln
     # discard the time since this can be learned by the model because we
     # use a LSTM network
     bomb_coords = np.array([[bomb[0][0], bomb[0][1], bomb[1]] for bomb in game_state['bombs']]).T
