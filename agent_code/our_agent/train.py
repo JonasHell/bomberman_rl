@@ -3,19 +3,19 @@ import random
 from collections import namedtuple, deque
 from typing import List
 
-import events as e
-from .callbacks import state_to_features
+import torch
+import torch.nn as nn
+import torch.nn.functional as F
+import torchvision
 
-# This is only an example!
-Transition = namedtuple('Transition',
-                        ('state', 'action', 'next_state', 'reward'))
+from callbacks import state_to_features
 
-# Hyper parameters -- DO modify
-TRANSITION_HISTORY_SIZE = 3  # keep only ... last transitions
-RECORD_ENEMY_TRANSITIONS = 1.0  # record enemy transitions with probability ...
+from modified_rule_based_agent import Modified_Rule_Based_Agent
 
-# Events
-PLACEHOLDER_EVENT = "PLACEHOLDER"
+
+ACTIONS = ['UP', 'RIGHT', 'DOWN', 'LEFT', 'WAIT', 'BOMB']
+MODEL_FILE_NAME = "our-saved-model.pt"
+LEARNING_RATE = 0.001
 
 
 def setup_training(self):
@@ -26,25 +26,15 @@ def setup_training(self):
 
     :param self: This object is passed to all callbacks and you can set arbitrary values.
     """
-    # self.states = 
-    # self.rule_based_agent = 
-    # self.targets =
-
-    # Example: Setup an array that will note transition tuples
-    # (s, a, r, s')
-    self.transitions = deque(maxlen=TRANSITION_HISTORY_SIZE)
+    self.states = [] # array to save the game states that occured
+    self.targets = [] # array to save what the rule based agent would do
+    self.expert = Modified_Rule_Based_Agent()
+    self.logger.debug("Everything is set up for this training game.")
 
 
 def game_events_occurred(self, old_game_state: dict, self_action: str, new_game_state: dict, events: List[str]):
     """
     Called once per step to allow intermediate rewards based on game events.
-
-    When this method is called, self.events will contain a list of all game
-    events relevant to your agent that occurred during the previous step. Consult
-    settings.py to see what events are tracked. You can hand out rewards to your
-    agent based on these events and your knowledge of the (new) game state.
-
-    This is *one* of the places where you could update your agent.
 
     :param self: This object is passed to all callbacks and you can set arbitrary values.
     :param old_game_state: The state that was passed to the last call of `act`.
@@ -52,17 +42,12 @@ def game_events_occurred(self, old_game_state: dict, self_action: str, new_game_
     :param new_game_state: The state the agent is in now.
     :param events: The events that occurred when going from  `old_game_state` to `new_game_state`
     """
-    # self.states.append()
-    # self.targets.append()
-
-    self.logger.debug(f'Encountered game event(s) {", ".join(map(repr, events))} in step {new_game_state["step"]}')
-
-    # Idea: Add your own events to hand out rewards
-    if ...:
-        events.append(PLACEHOLDER_EVENT)
-
-    # state_to_features is defined in callbacks.py
-    self.transitions.append(Transition(state_to_features(old_game_state), self_action, state_to_features(new_game_state), reward_from_events(self, events)))
+    # append state and expert prediction
+    self.states.append(state_to_features(old_game_state))
+    target = self.expert.act(old_game_state)
+    # self.targets.append((ACTIONS == traget)*1)
+    # CrossEntropyLoss just needs the index of target class
+    self.targets.append(ACTIONS.index(target))
 
 
 def end_of_round(self, last_game_state: dict, last_action: str, events: List[str]):
@@ -77,47 +62,50 @@ def end_of_round(self, last_game_state: dict, last_action: str, events: List[str
 
     :param self: The same object that is passed to all of your callbacks.
     """
-    # self.model.train()
-    # target = self.target.totensor
-    # states = self.states.totensor
-    # out = self.model()
-    # criterion = 
-    # loss =
-    # zero_grad
-    # loss.backward
-    # optimizer =
-    # optimizer.step()
+    # append last game state
+    self.states.append(state_to_features(last_game_state))
+    target = self.expert.act(old_game_state)
+    # self.targets.append((ACTIONS == traget)*1)
+    # CrossEntropyLoss just needs the index of target class
+    self.targets.append(ACTIONS.index(target))
+    self.logger.debug("Last game state appended.")
+
+    # set model to trianing mode
+    self.model.train()
+    self.logger.info("Model set to training mode.")
+
+    # translate states and targets to tensor and send to device, calculate output of network
+    states = torch.tensor(self.states).to(self.device)
+    targets = torch.tensor(self.targets).to(self.device)
+    out = self.model(states).to(self.device)
+    self.logger.debug("Output calculated.")
+
+    # actual training with loss calculation, back propagation and optimization step
+    criterion = nn.CrossEntropyLoss()
+    loss = criterion(out, targets)
+
+    self.model.zero_grad
+    loss.backward()
+
+    optimizer = optim.Adam(self.model.parameters(), lr=LEARNING_RATE)
+    optimizer.setp()
+
+    self.logger.debug("Training for this game done.")
+
     # loss auf tensorboard schieben bzw. erstmal printen um zu schauen obs läuft
-    # logging?
-    #
-    # self.states = []
-    # self.targets = []
-    # self.model.save()?
-    # self.model = 
+    print(f"[{last_game_state['round']:4}]: loss = {loss}")
+    print(f"{'':6} survived steps = {last_game_state['step']}")
+    print(f"{'':6} loss per step = {loss/last_game_state['step']}")
+    print(f"{'':6} score (own) = {self.score}")
 
-    self.logger.debug(f'Encountered event(s) {", ".join(map(repr, events))} in final step')
-    self.transitions.append(Transition(state_to_features(last_game_state), last_action, None, reward_from_events(self, events)))
+    # save the model
+    torch.save(self.model, MODEL_FILE_NAME)
+    self.logger.info("Model saved to " + MODEL_FILE_NAME)
 
-    # Store the model
-    with open("my-saved-model.pt", "wb") as file:
-        pickle.dump(self.model, file)
-
-
-def reward_from_events(self, events: List[str]) -> int:
-    """
-    *This is not a required function, but an idea to structure your code.*
-
-    Here you can modify the rewards your agent get so as to en/discourage
-    certain behavior.
-    """
-    game_rewards = {
-        e.COIN_COLLECTED: 1,
-        e.KILLED_OPPONENT: 5,
-        PLACEHOLDER_EVENT: -.1  # idea: the custom event is bad
-    }
-    reward_sum = 0
-    for event in events:
-        if event in game_rewards:
-            reward_sum += game_rewards[event]
-    self.logger.info(f"Awarded {reward_sum} for events {', '.join(events)}")
-    return reward_sum
+    # set everything back for next game
+    # not sure if necessary, becuase I'm not sure when the setupt method is called
+    # once at the beginning or at the beginning of every game
+    self.states = []
+    self.targets = []
+    self.model.eval()
+    self.logger.info("Everything set back for new game.")

@@ -1,4 +1,6 @@
 import numpy as np
+import torch
+from modified_rule_based_agent import Modified_Rule_Based_Agent
 
 '''
 result = np.zeros((5, 5, 2))
@@ -37,7 +39,7 @@ print(field)
 
 print(int(False))
 print(int(True))
-'''
+
 
 #coins = [('a', 2, True, (1, 1)), ('b', 1, False, (4, 3)), ('c', 0, True, (2, 1))]
 coins = np.random.randint(9, size=49)
@@ -49,3 +51,9 @@ matrix = np.zeros((5, 5, 5))
 
 matrix[:, :, 1] = coins[1:-1, 1:-1]
 print(matrix)
+'''
+
+ACTIONS = ['UP', 'RIGHT', 'DOWN', 'LEFT', 'WAIT', 'BOMB']
+print(ACTIONS)
+print(ACTIONS.index('DOWN'))
+#print(np.where(np.array(ACTIONS) == 'LEFT'))

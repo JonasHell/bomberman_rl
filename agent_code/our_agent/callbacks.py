@@ -9,8 +9,13 @@ import torch.nn as nn
 import torch.nn.functional as F
 import torchvision
 
+from modified_rule_based_agent import Modified_Rule_Based_Agent
+
 
 ACTIONS = ['UP', 'RIGHT', 'DOWN', 'LEFT', 'WAIT', 'BOMB']
+MODEL_FILE_NAME = "our-saved-model.pt"
+SIZE_OF_INPUT = 1137
+RANDOM_PROB = 0.1
 
 
 def setup(self):
@@ -27,18 +32,22 @@ def setup(self):
 
     :param self: This object is passed to all callbacks and you can set arbitrary values.
     """
-    # init model oder lade es von file
-    # self.model = ...
-    # tensorboard?
-
-    if self.train or not os.path.isfile("my-saved-model.pt"):
-        self.logger.info("Setting up model from scratch.")
-        weights = np.random.rand(len(ACTIONS))
-        self.model = weights / weights.sum()
+    # check if sved version is available, otherwise initialize new model
+    if os.path. isfile(MODEL_FILE_NAME):
+        self.model = torch.load(MODEL_FILE_NAME)
+        self.logger.info("Loaded saved model.")
     else:
-        self.logger.info("Loading model from saved state.")
-        with open("my-saved-model.pt", "rb") as file:
-            self.model = pickle.load(file)
+        self.model = OurNeuralNework(SIZE_OF_INPUT)
+        self.logger.info("Setting up model from Scratch.")
+    
+    # check if cuda is available and set device accordingly
+    self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+    self.model = self.model.to(self.device)
+    self.logger.info("Model runs on " + device)
+
+    # make sure model is in eval mode
+    self.model.eval()
+    self.logger.info("Model runs in eval mode.")
 
 
 def act(self, game_state: dict) -> str:
@@ -55,15 +64,16 @@ def act(self, game_state: dict) -> str:
     # random nötig?
     # return out
 
-    # todo Exploration vs exploitation
-    random_prob = .1
-    if self.train and random.random() < random_prob:
-        self.logger.debug("Choosing action purely at random.")
+    # exploration only when training and with prob = RANDOM_PROB
+    if self.train and random.random() < RANDOM_PROB:
+        self.logger.debug("Choosing action as random for exploration.")
         # 80%: walk in any direction. 10% wait. 10% bomb.
-        return np.random.choice(ACTIONS, p=[.2, .2, .2, .2, .1, .1])
+        return np.random.choice(ACTIONS, p=[0.2, 0.2, 0.2, 0.2, 0.1, 0.1])
 
-    self.logger.debug("Querying model for action.")
-    return np.random.choice(ACTIONS, p=self.model)
+    state_vector = torch.tensor(state_to_features(game_state)).to(device)
+    out = self.model(state_vector)
+    self.logger.debug("Querring model for best action.")
+    return ACTIONS[torch.argmax(out)]
 
 
 def state_to_features(game_state: dict) -> np.array:
@@ -183,5 +193,5 @@ class OurNeuralNetwork(nn.Module):
         out = self.linear4(out)
         out = F.selu(out)
         out = self.linear5(out)
-        # out = F.softmax evtl. nicht nötig, weil CrossEntropy das auch anwendet
+        # out = F.softmax nicht nötig, weil CrossEntropy das auch anwendet
         return out
