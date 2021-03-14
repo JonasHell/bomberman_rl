@@ -51,9 +51,11 @@ matrix = np.zeros((5, 5, 5))
 
 matrix[:, :, 1] = coins[1:-1, 1:-1]
 print(matrix)
-'''
 
 ACTIONS = ['UP', 'RIGHT', 'DOWN', 'LEFT', 'WAIT', 'BOMB']
 print(ACTIONS)
 print(ACTIONS.index('DOWN'))
 #print(np.where(np.array(ACTIONS) == 'LEFT'))
+'''
+print(torch.device('cuda' if torch.cuda.is_available() else 'cpu'))
+print(str(torch.device('cuda' if torch.cuda.is_available() else 'cpu')))

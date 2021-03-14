@@ -9,6 +9,8 @@ import torch.nn as nn
 import torch.nn.functional as F
 import torchvision
 
+import sys
+sys.path.append('agent_code\our_agent')
 from modified_rule_based_agent import Modified_Rule_Based_Agent
 
 
@@ -37,13 +39,13 @@ def setup(self):
         self.model = torch.load(MODEL_FILE_NAME)
         self.logger.info("Loaded saved model.")
     else:
-        self.model = OurNeuralNework(SIZE_OF_INPUT)
+        self.model = OurNeuralNetwork(SIZE_OF_INPUT)
         self.logger.info("Setting up model from Scratch.")
     
     # check if cuda is available and set device accordingly
     self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     self.model = self.model.to(self.device)
-    self.logger.info("Model runs on " + device)
+    self.logger.info("Model runs on " + str(self.device))
 
     # make sure model is in eval mode
     self.model.eval()
@@ -70,7 +72,7 @@ def act(self, game_state: dict) -> str:
         # 80%: walk in any direction. 10% wait. 10% bomb.
         return np.random.choice(ACTIONS, p=[0.2, 0.2, 0.2, 0.2, 0.1, 0.1])
 
-    state_vector = torch.tensor(state_to_features(game_state)).to(device)
+    state_vector = torch.tensor(state_to_features(game_state), dtype=torch.float).to(self.device)
     out = self.model(state_vector)
     self.logger.debug("Querring model for best action.")
     return ACTIONS[torch.argmax(out)]
@@ -127,15 +129,17 @@ def state_to_features(game_state: dict) -> np.array:
     # user np.moveaxis to transform list of tuples in numpy array
     # https://stackoverflow.com/questions/42537956/slice-numpy-array-using-list-of-coordinates
     # -1 in coordintaes because we left out the border
-    coin_coords = np.moveaxis(np.array(game_state['coins']), -1, 0)
-    hybrid_vectors[ coin_coords[0]-1, coin_coords[1]-1, 2 ] = 1
+    if len(game_state['coins']) > 0:
+        coin_coords = np.moveaxis(np.array(game_state['coins']), -1, 0)
+        hybrid_vectors[ coin_coords[0]-1, coin_coords[1]-1, 2 ] = 1
 
     # check where bombs are
     # set the fourth entry in the vector to 1
     # discard the time since this can be learned by the model because we
     # use a LSTM network
-    bomb_coords = np.array([[bomb[0][0], bomb[0][1], bomb[1]] for bomb in game_state['bombs']]).T
-    hybrid_vectors[ bomb_coords[0]-1, bomb_coords[1]-1, 3 ] = bomb_coords[2]
+    if len(game_state['bombs']) > 0:
+        bomb_coords = np.array([[bomb[0][0], bomb[0][1], bomb[1]] for bomb in game_state['bombs']]).T
+        hybrid_vectors[ bomb_coords[0]-1, bomb_coords[1]-1, 3 ] = bomb_coords[2]
 
     # vectorized version of above implementation
     '''
