@@ -31,11 +31,11 @@ def setup_training(self):
     """
     # set learning parameters
     self.criterion = nn.CrossEntropyLoss()
-    self.optimizer = optim.Adam(self.model.parameters(), lr=0.01)
+    self.optimizer = optim.Adam(self.model.parameters(), lr=0.001)
     self.batch_size = 1
 
     # writer for tensorboard
-    self.writer = SummaryWriter("../../runs/batch1")
+    self.writer = SummaryWriter("../../runs/batch1_lr001")
 
     self.states = [] # array to save the game states that occured
     self.targets = [] # array to save what the rule based agent would do
