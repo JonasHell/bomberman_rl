@@ -47,7 +47,14 @@ def game_events_occurred(self, old_game_state: dict, self_action: str, new_game_
     :param new_game_state: The state the agent is in now.
     :param events: The events that occurred when going from  `old_game_state` to `new_game_state`
     """
-    # append state and expert prediction
+    # get opinion of expert
+    target = self.expert.act(new_game_state)
+    if target is not None:
+        # append to states and target
+        self.targets.append(ACTIONS.index(target)) # CrossEntropyLoss just needs the index of target class
+        self.states.append(state_to_features(new_game_state))
+
+    '''
     self.states.append(state_to_features(new_game_state))
     target = self.expert.act(new_game_state)
     # self.targets.append((ACTIONS == traget)*1)
@@ -57,6 +64,7 @@ def game_events_occurred(self, old_game_state: dict, self_action: str, new_game_
         self.targets.append(4) # for WAIT
     else:
         self.targets.append(ACTIONS.index(target))
+    '''
 
 
 def end_of_round(self, last_game_state: dict, last_action: str, events: List[str]):
@@ -72,12 +80,11 @@ def end_of_round(self, last_game_state: dict, last_action: str, events: List[str
     :param self: The same object that is passed to all of your callbacks.
     """
     # append last game state
-    #self.states.append(state_to_features(last_game_state))
-    #target = self.expert.act(last_game_state)
-    # self.targets.append((ACTIONS == traget)*1)
-    # CrossEntropyLoss just needs the index of target class
-    #self.targets.append(ACTIONS.index(target))
-    #self.logger.debug("Last game state appended.")
+    target = self.expert.act(last_game_state)
+    if target is not None:
+        # append to states and target
+        self.targets.append(ACTIONS.index(target)) # CrossEntropyLoss just needs the index of target class
+        self.states.append(state_to_features(last_game_state))
 
     # set model to trianing mode
     self.model.train()
