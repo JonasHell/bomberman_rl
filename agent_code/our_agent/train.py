@@ -10,7 +10,7 @@ import torch.nn.functional as F
 import torch.optim as optim
 import torchvision
 
-from torch.utils.tensorboard import SummaryWriter
+#from torch.utils.tensorboard import SummaryWriter
 
 from callbacks import state_to_features
 
@@ -20,7 +20,7 @@ from modified_rule_based_agent import Modified_Rule_Based_Agent
 ACTIONS = ['UP', 'RIGHT', 'DOWN', 'LEFT', 'WAIT', 'BOMB']
 MODEL_FILE_NAME = "our-saved-model.pt"
 LEARNING_RATE = 0.01
-WRITER = SummaryWriter("runs")
+#WRITER = SummaryWriter("runs")
 
 
 def setup_training(self):
