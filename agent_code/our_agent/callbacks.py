@@ -71,11 +71,7 @@ def act(self, game_state: dict) -> str:
 
     state_vector = torch.tensor(state_to_features(game_state), dtype=torch.float).to(self.device)
     out = self.model(state_vector)
-    print(out)
-    print(torch.argmax(out))
-    print(ACTIONS[torch.argmax(out)])
-
-    print(self.model.parameters())
+   
     self.logger.debug("Querring model for best action.")
     return ACTIONS[torch.argmax(out)]
 

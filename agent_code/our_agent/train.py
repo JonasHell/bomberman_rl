@@ -87,8 +87,8 @@ def game_events_occurred(self, old_game_state: dict, self_action: str, new_game_
         self.optimizer.step()
 
         # loss auf tensorboard schieben bzw. erstmal printen um zu schauen obs läuft
-        our_pred = ACTIONS[troch.argmax(out)]
-        if target = our_pred:
+        our_pred = ACTIONS[torch.argmax(out)]
+        if target == our_pred:
             self.correct_counter += 1
         print(f"[{self.global_step:6}]: loss={loss:.4f} acc={self.correct_counter} our={our_pred:5} exp={target:5}")
         self.writer.add_scalar("training loss", loss, self.global_step)
