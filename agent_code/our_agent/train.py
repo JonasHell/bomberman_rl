@@ -31,8 +31,12 @@ def setup_training(self):
     """
     # set learning parameters
     self.criterion = nn.CrossEntropyLoss()
-    self.optimizer = optim.Adam(self.model.parameters(), lr=0.001)
+    self.optimizer = optim.Adam(self.model.parameters(), lr=0.0001)
     self.batch_size = 1
+    
+    # init counter
+    self.global_step = 0
+    self.correct_counter = 0
 
     # writer for tensorboard
     self.writer = SummaryWriter("../../runs/batch1_lr001")
@@ -68,16 +72,11 @@ def game_events_occurred(self, old_game_state: dict, self_action: str, new_game_
         # translate states and targets to tensor and send to device, calculate output of network
         states = torch.tensor(self.states, dtype=torch.float).to(self.device)
         targets = torch.tensor(self.targets).type(torch.LongTensor).to(self.device)
-        print(f"states: {states.shape}")
-        print(f"targets: {targets.shape}")
-        #targets = torch.tensor(self.targets)
-        #targets = targets.type(torch.LongTensor).to(self.device)
+
         self.logger.debug("States and targets translated to tensors.")
 
         out = self.model(states).to(self.device)
-        print(f"out: {out.shape}")
-        print(out)
-        print(targets)
+
         self.logger.debug("Output calculated.")
 
         # actual training with loss calculation, back propagation and optimization step
@@ -88,8 +87,12 @@ def game_events_occurred(self, old_game_state: dict, self_action: str, new_game_
         self.optimizer.step()
 
         # loss auf tensorboard schieben bzw. erstmal printen um zu schauen obs läuft
-        print(f"[{self.global_step:6}]: loss = {loss}")
+        our_pred = ACTIONS[troch.argmax(out)]
+        if target = our_pred:
+            self.correct_counter += 1
+        print(f"[{self.global_step:6}]: loss={loss:.4f} acc={self.correct_counter} our={our_pred:5} exp={target:5}")
         self.writer.add_scalar("training loss", loss, self.global_step)
+        self.writer.add_scalar("training correct predictions", self.correct_counter, self.global_step)
         # set everything back for next game
         # not sure if necessary, becuase I'm not sure when the setupt method is called
         # once at the beginning or at the beginning of every game
