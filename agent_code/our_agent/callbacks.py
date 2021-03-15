@@ -45,6 +45,7 @@ def setup(self):
     # check if cuda is available and set device accordingly
     self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     self.model = self.model.to(self.device)
+    print("Model runs on " + str(self.device))
     self.logger.info("Model runs on " + str(self.device))
 
     # make sure model is in eval mode
