@@ -53,6 +53,9 @@ def setup(self):
     self.model.eval()
     self.logger.info("Model runs in eval mode.")
 
+    # init global step counter
+    self.gloabel_step = 0
+
 
 def act(self, game_state: dict) -> str:
     """
