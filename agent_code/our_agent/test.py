@@ -59,3 +59,5 @@ print(ACTIONS.index('DOWN'))
 '''
 print(torch.device('cuda' if torch.cuda.is_available() else 'cpu'))
 print(str(torch.device('cuda' if torch.cuda.is_available() else 'cpu')))
+
+print("hi")
