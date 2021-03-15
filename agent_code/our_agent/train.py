@@ -58,7 +58,6 @@ def game_events_occurred(self, old_game_state: dict, self_action: str, new_game_
     
     # if batch size reached, make update and set everything back
     if (self.gloabel_step % BATCH_SIZE == 0) and (self.states):
-        print(str(new_game_state['round']) + " " + str(self.gloabel_step))
         # set model to trianing mode
         self.model.train()
         self.logger.info("Model set to training mode.")
