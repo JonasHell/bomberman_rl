@@ -11,7 +11,7 @@ import torchvision
 
 import sys
 sys.path.append('agent_code/our_agent')
-#sys.path.append('bomberman_rl/agent_code/our_agent')
+sys.path.append('bomberman_rl/agent_code/our_agent')
 from modified_rule_based_agent import Modified_Rule_Based_Agent
 
 
