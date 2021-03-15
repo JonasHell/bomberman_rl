@@ -10,7 +10,7 @@ import torch.nn.functional as F
 import torch.optim as optim
 import torchvision
 
-from torch.utils.tensorboard import SummaryWriter
+#from torch.utils.tensorboard import SummaryWriter
 
 from callbacks import state_to_features
 
@@ -19,6 +19,9 @@ from modified_rule_based_agent import Modified_Rule_Based_Agent
 
 ACTIONS = ['UP', 'RIGHT', 'DOWN', 'LEFT', 'WAIT', 'BOMB']
 MODEL_FILE_NAME = "our-saved-model.pt"
+BATCH_SIZE = 4
+LEARNING_RATE = 0.001
+#WRITER = SummaryWriter("runs")
 
 
 def setup_training(self):
@@ -29,14 +32,6 @@ def setup_training(self):
 
     :param self: This object is passed to all callbacks and you can set arbitrary values.
     """
-    # set learning parameters
-    self.criterion = nn.CrossEntropyLoss()
-    self.optimizer = optim.Adam(self.model.parameters(), lr=0.01)
-    self.batch_size = 1
-
-    # writer for tensorboard
-    self.writer = SummaryWriter("../../runs/batch1")
-
     self.states = [] # array to save the game states that occured
     self.targets = [] # array to save what the rule based agent would do
     self.expert = Modified_Rule_Based_Agent()
@@ -59,8 +54,10 @@ def game_events_occurred(self, old_game_state: dict, self_action: str, new_game_
         # append to states and target
         self.targets.append(ACTIONS.index(target)) # CrossEntropyLoss just needs the index of target class
         self.states.append(state_to_features(new_game_state))
-        self.global_step += 1
-
+        self.gloabel_step += 1
+    
+    # if batch size reached, make update and set everything back
+    if (self.gloabel_step % BATCH_SIZE == 0) and (self.states):
         # set model to trianing mode
         self.model.train()
         self.logger.info("Model set to training mode.")
@@ -68,28 +65,30 @@ def game_events_occurred(self, old_game_state: dict, self_action: str, new_game_
         # translate states and targets to tensor and send to device, calculate output of network
         states = torch.tensor(self.states, dtype=torch.float).to(self.device)
         targets = torch.tensor(self.targets).type(torch.LongTensor).to(self.device)
-        print(f"states: {states.shape}")
-        print(f"targets: {targets.shape}")
         #targets = torch.tensor(self.targets)
         #targets = targets.type(torch.LongTensor).to(self.device)
         self.logger.debug("States and targets translated to tensors.")
 
         out = self.model(states).to(self.device)
-        print(f"out: {out.shape}")
-        print(out)
-        print(targets)
         self.logger.debug("Output calculated.")
 
         # actual training with loss calculation, back propagation and optimization step
-        loss = self.criterion(out, targets)
+        criterion = nn.CrossEntropyLoss()
+        loss = criterion(out, targets)
 
-        self.model.zero_grad()
+        self.model.zero_grad
         loss.backward()
-        self.optimizer.step()
+
+        optimizer = optim.Adam(self.model.parameters(), lr=LEARNING_RATE)
+        optimizer.step()
 
         # loss auf tensorboard schieben bzw. erstmal printen um zu schauen obs läuft
-        print(f"[{self.global_step:6}]: loss = {loss}")
-        self.writer.add_scalar("training loss", loss, self.global_step)
+        if (self.gloabel_step == 1) or (self.gloabel_step % (BATCH_SIZE*10) == 0):
+            print(f"[{new_game_state['round']:4}]: loss = {loss}")
+            #print(f"{'':6} survived steps = {last_game_state['step']}")
+            print(f"{'':6} loss per step = {loss/BATCH_SIZE}")
+            #print(f"{'':6} score (own) = {self.score}")
+
         # set everything back for next game
         # not sure if necessary, becuase I'm not sure when the setupt method is called
         # once at the beginning or at the beginning of every game
@@ -97,11 +96,19 @@ def game_events_occurred(self, old_game_state: dict, self_action: str, new_game_
         self.targets = []
         self.model.eval()
         self.logger.info("Everything set back for new game.")
+    
 
+    '''
+    self.states.append(state_to_features(new_game_state))
+    target = self.expert.act(new_game_state)
+    # self.targets.append((ACTIONS == traget)*1)
+    # CrossEntropyLoss just needs the index of target class
+    if target is None:
+        # self.targets.append(np.random.choice([0, 1, 2, 3, 4, 5], p=[0.2, 0.2, 0.2, 0.2, 0.1, 0.1]))
+        self.targets.append(4) # for WAIT
     else:
-        print("Target is None!!!", self.global_step)
-        print(old_game_state['round'], ", ", old_game_state['step'])
-        print(new_game_state['round'], ", ", new_game_state['step'])
+        self.targets.append(ACTIONS.index(target))
+    '''
 
 
 def end_of_round(self, last_game_state: dict, last_action: str, events: List[str]):
@@ -116,17 +123,55 @@ def end_of_round(self, last_game_state: dict, last_action: str, events: List[str
 
     :param self: The same object that is passed to all of your callbacks.
     """
-    print(f"end of round, {last_game_state['round']}, {last_game_state['step']}")
-    print("************************************************************************")
-    print()
-    
-    self.states = []
-    self.targets = []
-    self.model.eval()
-    self.global_step += 1
-    self.logger.info("Everything set back for new game.")
+    # append last game state
+    target = self.expert.act(last_game_state)
+    if target is not None:
+        # append to states and target
+        self.targets.append(ACTIONS.index(target)) # CrossEntropyLoss just needs the index of target class
+        self.states.append(state_to_features(last_game_state))
 
+        # set model to trianing mode
+        self.model.train()
+        self.logger.info("Model set to training mode.")
+
+        # translate states and targets to tensor and send to device, calculate output of network
+        states = torch.tensor(self.states, dtype=torch.float).to(self.device)
+        targets = torch.tensor(self.targets).type(torch.LongTensor).to(self.device)
+        #targets = torch.tensor(self.targets)
+        #targets = targets.type(torch.LongTensor).to(self.device)
+        self.logger.debug("States and targets translated to tensors.")
+
+        out = self.model(states).to(self.device)
+        self.logger.debug("Output calculated.")
+
+        # actual training with loss calculation, back propagation and optimization step
+        criterion = nn.CrossEntropyLoss()
+        loss = criterion(out, targets)
+
+        self.model.zero_grad
+        loss.backward()
+
+        optimizer = optim.Adam(self.model.parameters(), lr=LEARNING_RATE)
+        optimizer.step()
+
+        self.logger.debug("Training for this game done.")
+
+        # set everything back for next game
+        # not sure if necessary, becuase I'm not sure when the setupt method is called
+        # once at the beginning or at the beginning of every game
+        self.states = []
+        self.targets = []
+        self.model.eval()
+        self.gloabel_step += 1
+        self.logger.info("Everything set back for new game.")
+
+    # loss auf tensorboard schieben bzw. erstmal printen um zu schauen obs läuft
+    if (last_game_state['round']-1) % 50 == 0:
+        #print(f"[{last_game_state['round']:4}]: loss = {loss}")
+        print(f"{'':6} survived steps = {last_game_state['step']}")
+        #print(f"{'':6} loss per step = {loss/last_game_state['step']}")
+        #print(f"{'':6} score (own) = {self.score}")
     
     # save the model
-    torch.save(self.model, MODEL_FILE_NAME)
-    self.logger.info("Model saved to " + MODEL_FILE_NAME)
+        torch.save(self.model, MODEL_FILE_NAME)
+        self.logger.info("Model saved to " + MODEL_FILE_NAME)

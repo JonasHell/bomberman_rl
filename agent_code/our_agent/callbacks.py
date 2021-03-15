@@ -18,7 +18,7 @@ from modified_rule_based_agent import Modified_Rule_Based_Agent
 ACTIONS = ['UP', 'RIGHT', 'DOWN', 'LEFT', 'WAIT', 'BOMB']
 MODEL_FILE_NAME = "our-saved-model.pt"
 SIZE_OF_INPUT = 1137
-RANDOM_PROB = 0.1
+RANDOM_PROB = 0.0
 
 
 def setup(self):
@@ -54,7 +54,7 @@ def setup(self):
     self.logger.info("Model runs in eval mode.")
 
     # init global step counter
-    self.gloabel_step = 0
+    self.global_step = 0
 
 
 def act(self, game_state: dict) -> str:
@@ -66,11 +66,6 @@ def act(self, game_state: dict) -> str:
     :param game_state: The dictionary that describes everything on the board.
     :return: The action to take as a string.
     """
-    # model.eval()
-    # out = model()
-    # random nötig?
-    # return out
-
     # exploration only when training and with prob = RANDOM_PROB
     if self.train and random.random() < RANDOM_PROB:
         self.logger.debug("Choosing action as random for exploration.")
@@ -79,6 +74,11 @@ def act(self, game_state: dict) -> str:
 
     state_vector = torch.tensor(state_to_features(game_state), dtype=torch.float).to(self.device)
     out = self.model(state_vector)
+    print(out)
+    print(torch.argmax(out))
+    print(ACTIONS[torch.argmax(out)])
+
+    print(self.model.parameters())
     self.logger.debug("Querring model for best action.")
     return ACTIONS[torch.argmax(out)]
 
