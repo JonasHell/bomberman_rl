@@ -99,8 +99,9 @@ def game_events_occurred(self, old_game_state: dict, self_action: str, new_game_
             print(f"[{new_game_state['round']:5}] [{new_game_state['step']:3}]: loss={loss/self.batch_size:.4f}, acc_batch={correct*100/self.batch_size:5}%, acc_glo={round(self.correct_counter*100./self.global_step, 2):6}%, our={our_pred}")
             #print(f"{'':15}our={our_pred}")
             print(f"{'':63}exp={target_pred}")
-            self.writer.add_scalar("training loss per step", loss, self.global_step)
-            self.writer.add_scalar("training correct predictions", self.correct_counter, self.global_step)
+            self.writer.add_scalar("training loss per step", loss/self.batch_size, self.global_step)
+            self.writer.add_scalar("training global accruracy", self.correct_counter/self.global_step, self.global_step)
+            self.writer.add_scalar("training batch accruracy", correct/self.batch_size, self.global_step)
 
             #for param in self.model.parameters():
                 #print(torch.max(param.data))
