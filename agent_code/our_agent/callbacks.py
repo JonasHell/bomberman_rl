@@ -16,8 +16,8 @@ from modified_rule_based_agent import Modified_Rule_Based_Agent
 
 
 ACTIONS = ['UP', 'RIGHT', 'DOWN', 'LEFT', 'WAIT', 'BOMB']
-#MODEL_FILE_NAME = "our-saved-model.pt"
-MODEL_FILE_NAME = "layer3_batch4_lr0001.pt"
+MODEL_FILE_NAME = "our-saved-model.pt"
+#MODEL_FILE_NAME = "layer3_batch4_lr0001.pt"
 SIZE_OF_INPUT = 1137
 RANDOM_PROB = 0.0
 
