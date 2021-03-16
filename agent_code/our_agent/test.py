@@ -66,3 +66,10 @@ print(ACTIONS.index('DOWN'))
 
 net = OurNeuralNetwork(1137)
 print(sum(p.numel() for p in net.parameters() if p.requires_grad))
+
+print(5%1)
+print(0%1)
+print(7%1)
+
+ACTIONS = np.array(['UP', 'RIGHT', 'DOWN', 'LEFT', 'WAIT', 'BOMB'])
+print(ACTIONS[[0, 1, 0, 5]])

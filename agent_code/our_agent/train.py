@@ -18,7 +18,7 @@ from modified_rule_based_agent import Modified_Rule_Based_Agent
 
 
 ACTIONS = ['UP', 'RIGHT', 'DOWN', 'LEFT', 'WAIT', 'BOMB']
-MODEL_FILE_NAME = "layer3_batch1_lr0001"
+MODEL_FILE_NAME = "layer3_batch4_lr0001"
 
 
 def setup_training(self):
@@ -32,7 +32,7 @@ def setup_training(self):
     # set learning parameters
     self.criterion = nn.CrossEntropyLoss()
     self.optimizer = optim.Adam(self.model.parameters(), lr=0.0001)
-    self.batch_size = 1
+    self.batch_size = 4
     
     # init counter
     self.global_step = 0
@@ -65,41 +65,53 @@ def game_events_occurred(self, old_game_state: dict, self_action: str, new_game_
         self.states.append(state_to_features(new_game_state))
         self.global_step += 1
 
-        # set model to trianing mode
-        self.model.train()
-        self.logger.info("Model set to training mode.")
+        if self.global_step % self.batch_size == 0:
+            # set model to trianing mode
+            self.model.train()
+            self.logger.info("Model set to training mode.")
 
-        # translate states and targets to tensor and send to device, calculate output of network
-        states = torch.tensor(self.states, dtype=torch.float).to(self.device)
-        targets = torch.tensor(self.targets).type(torch.LongTensor).to(self.device)
+            # translate states and targets to tensor and send to device, calculate output of network
+            states = torch.tensor(self.states, dtype=torch.float).to(self.device)
+            targets = torch.tensor(self.targets).type(torch.LongTensor).to(self.device)
 
-        self.logger.debug("States and targets translated to tensors.")
+            self.logger.debug("States and targets translated to tensors.")
 
-        out = self.model(states).to(self.device)
+            out = self.model(states).to(self.device)
 
-        self.logger.debug("Output calculated.")
+            self.logger.debug("Output calculated.")
 
-        # actual training with loss calculation, back propagation and optimization step
-        loss = self.criterion(out, targets)
+            # actual training with loss calculation, back propagation and optimization step
+            loss = self.criterion(out, targets)
 
-        self.model.zero_grad()
-        loss.backward()
-        self.optimizer.step()
+            self.model.zero_grad()
+            loss.backward()
+            self.optimizer.step()
 
-        # loss auf tensorboard schieben bzw. erstmal printen um zu schauen obs läuft
-        our_pred = ACTIONS[torch.argmax(out)]
-        if target == our_pred:
-            self.correct_counter += 1
-        print(f"[{self.global_step:6}]: loss={loss:.4f} acc={self.correct_counter*100./self.global_step:.2f}% our={our_pred:5} exp={target:5}")
-        self.writer.add_scalar("training loss", loss, self.global_step)
-        self.writer.add_scalar("training correct predictions", self.correct_counter, self.global_step)
-        # set everything back for next game
-        # not sure if necessary, becuase I'm not sure when the setupt method is called
-        # once at the beginning or at the beginning of every game
-        self.states = []
-        self.targets = []
-        self.model.eval()
-        self.logger.info("Everything set back for new game.")
+            # calculate some other metrics for printing and tensorboard
+            our_pred = np.array(ACTIONS)[torch.argmax(out, dim=1)]
+            target_pred = np.array(ACTIONS)[self.targets]
+
+            correct = np.sum((our_pred == target_pred)*1)
+            
+            self.correct_counter += correct
+            
+            # print and write to tensoboard
+            print(f"[{new_game_state['round']:5}] [{new_game_state['step']:3}]: loss={loss/self.batch_size:.4f}, acc_batch={correct*100/self.batch_size:5}%, acc_glo={round(self.correct_counter*100./self.global_step, 2):6}%, our={our_pred}")
+            #print(f"{'':15}our={our_pred}")
+            print(f"{'':63}exp={target_pred}")
+            self.writer.add_scalar("training loss per step", loss, self.global_step)
+            self.writer.add_scalar("training correct predictions", self.correct_counter, self.global_step)
+
+            #for param in self.model.parameters():
+                #print(torch.max(param.data))
+
+            # set everything back for next batch
+            # not sure if necessary, becuase I'm not sure when the setup method is called
+            # once at the beginning or at the beginning of every game
+            self.states = []
+            self.targets = []
+            self.model.eval()
+            self.logger.info("Everything set back for new game.")
 
     else:
         print("Target is None!!!", self.global_step)
@@ -129,7 +141,9 @@ def end_of_round(self, last_game_state: dict, last_action: str, events: List[str
     self.global_step += 1
     self.logger.info("Everything set back for new game.")
 
-    
+    # flush summary writer
+    self.writer.flush()
+
     # save the model
     torch.save(self.model, MODEL_FILE_NAME+".pt")
     self.logger.info("Model saved to " + MODEL_FILE_NAME+".pt")
