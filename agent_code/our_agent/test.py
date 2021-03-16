@@ -1,6 +1,11 @@
 import numpy as np
 import torch
 from modified_rule_based_agent import Modified_Rule_Based_Agent
+from callbacks import OurNeuralNetwork
+
+# number of parameters: 3.449.702 with 5 layer net with selu
+# number of parameters:   652.646 with 4 layer net with selu
+# number of parameters:   652.646 with 4 layer net with relu
 
 '''
 result = np.zeros((5, 5, 2))
@@ -57,7 +62,6 @@ print(ACTIONS)
 print(ACTIONS.index('DOWN'))
 #print(np.where(np.array(ACTIONS) == 'LEFT'))
 '''
-print(torch.device('cuda' if torch.cuda.is_available() else 'cpu'))
-print(str(torch.device('cuda' if torch.cuda.is_available() else 'cpu')))
 
-print("hi")
+net = OurNeuralNetwork(1137)
+print(sum(p.numel() for p in net.parameters() if p.requires_grad))
