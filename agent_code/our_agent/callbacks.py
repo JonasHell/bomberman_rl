@@ -181,6 +181,8 @@ class OurNeuralNetwork(nn.Module):
     def __init__(self, input_size):
         super(OurNeuralNetwork, self).__init__()
         self.linear1 = nn.Linear(input_size, 512) # input_size 1137
+        #self.linear2 = nn.Linear(256, 64)
+        #self.linear3 = nn.Linear(64, 6)
         self.linear2 = nn.Linear(512, 128)
         self.linear3 = nn.Linear(128, 32)
         self.linear4 = nn.Linear(32, 6)

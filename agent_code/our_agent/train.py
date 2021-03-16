@@ -18,7 +18,7 @@ from modified_rule_based_agent import Modified_Rule_Based_Agent
 
 
 ACTIONS = ['UP', 'RIGHT', 'DOWN', 'LEFT', 'WAIT', 'BOMB']
-MODEL_FILE_NAME = "our-saved-model.pt"
+MODEL_FILE_NAME = "layer4_batch1_lr001"
 
 
 def setup_training(self):
@@ -31,7 +31,7 @@ def setup_training(self):
     """
     # set learning parameters
     self.criterion = nn.CrossEntropyLoss()
-    self.optimizer = optim.Adam(self.model.parameters(), lr=0.1)
+    self.optimizer = optim.Adam(self.model.parameters(), lr=0.001)
     self.batch_size = 1
     
     # init counter
@@ -39,7 +39,7 @@ def setup_training(self):
     self.correct_counter = 0
 
     # writer for tensorboard
-    self.writer = SummaryWriter("../../runs/layer4_batch1_lr1")
+    self.writer = SummaryWriter("../../runs/"+MODEL_FILE_NAME)
 
     self.states = [] # array to save the game states that occured
     self.targets = [] # array to save what the rule based agent would do
@@ -131,5 +131,5 @@ def end_of_round(self, last_game_state: dict, last_action: str, events: List[str
 
     
     # save the model
-    torch.save(self.model, MODEL_FILE_NAME)
-    self.logger.info("Model saved to " + MODEL_FILE_NAME)
+    torch.save(self.model, MODEL_FILE_NAME+".pt")
+    self.logger.info("Model saved to " + MODEL_FILE_NAME+".pt")
