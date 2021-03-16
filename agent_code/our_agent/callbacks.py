@@ -180,12 +180,12 @@ def state_to_features(game_state: dict) -> np.array:
 class OurNeuralNetwork(nn.Module):
     def __init__(self, input_size):
         super(OurNeuralNetwork, self).__init__()
-        self.linear1 = nn.Linear(input_size, 512) # input_size 1137
-        #self.linear2 = nn.Linear(256, 64)
-        #self.linear3 = nn.Linear(64, 6)
-        self.linear2 = nn.Linear(512, 128)
-        self.linear3 = nn.Linear(128, 32)
-        self.linear4 = nn.Linear(32, 6)
+        self.linear1 = nn.Linear(input_size, 256) # input_size 1137
+        self.linear2 = nn.Linear(256, 64)
+        self.linear3 = nn.Linear(64, 6)
+        #self.linear2 = nn.Linear(512, 128)
+        #self.linear3 = nn.Linear(128, 32)
+        #self.linear4 = nn.Linear(32, 6)
 
     def forward(self, x):
         out = self.linear1(x)
@@ -193,8 +193,8 @@ class OurNeuralNetwork(nn.Module):
         out = self.linear2(out)
         out = F.selu(out)
         out = self.linear3(out)
-        out = F.selu(out)
-        out = self.linear4(out)
+        #out = F.selu(out)
+        #out = self.linear4(out)
         return out
 
     def init_old(self, input_size):
