@@ -39,7 +39,7 @@ def setup_training(self):
     self.correct_counter = 0
 
     # writer for tensorboard
-    self.writer = SummaryWriter("../../runs/batch1_lr001")
+    self.writer = SummaryWriter("../../runs/batch1_lr0001")
 
     self.states = [] # array to save the game states that occured
     self.targets = [] # array to save what the rule based agent would do
@@ -90,7 +90,7 @@ def game_events_occurred(self, old_game_state: dict, self_action: str, new_game_
         our_pred = ACTIONS[torch.argmax(out)]
         if target == our_pred:
             self.correct_counter += 1
-        print(f"[{self.global_step:6}]: loss={loss:.4f} acc={self.correct_counter} our={our_pred:5} exp={target:5}")
+        print(f"[{self.global_step:6}]: loss={loss:.4f} acc={self.correct_counter*100./self.global_step:.2f}% our={our_pred:5} exp={target:5}")
         self.writer.add_scalar("training loss", loss, self.global_step)
         self.writer.add_scalar("training correct predictions", self.correct_counter, self.global_step)
         # set everything back for next game
