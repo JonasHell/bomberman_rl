@@ -18,7 +18,7 @@ from modified_rule_based_agent import Modified_Rule_Based_Agent
 
 
 ACTIONS = ['UP', 'RIGHT', 'DOWN', 'LEFT', 'WAIT', 'BOMB']
-MODEL_FILE_NAME = "layer3_batch4_lr0001"
+MODEL_FILE_NAME = "layer3_batch4_lr001_wd0005"
 
 
 def setup_training(self):
@@ -31,7 +31,7 @@ def setup_training(self):
     """
     # set learning parameters
     self.criterion = nn.CrossEntropyLoss()
-    self.optimizer = optim.Adam(self.model.parameters(), lr=0.0001)
+    self.optimizer = optim.Adam(self.model.parameters(), lr=0.001, weight_decay=0.0005)
     self.batch_size = 4
     
     # init counter
@@ -102,8 +102,8 @@ def game_events_occurred(self, old_game_state: dict, self_action: str, new_game_
             self.writer.add_scalar("training loss per step", loss, self.global_step)
             self.writer.add_scalar("training correct predictions", self.correct_counter, self.global_step)
 
-            #for param in self.model.parameters():
-                #print(torch.max(param.data))
+            for param in self.model.parameters():
+                print(torch.max(param.data))
 
             # set everything back for next batch
             # not sure if necessary, becuase I'm not sure when the setup method is called

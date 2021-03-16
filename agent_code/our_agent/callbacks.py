@@ -16,7 +16,8 @@ from modified_rule_based_agent import Modified_Rule_Based_Agent
 
 
 ACTIONS = ['UP', 'RIGHT', 'DOWN', 'LEFT', 'WAIT', 'BOMB']
-MODEL_FILE_NAME = "our-saved-model.pt"
+#MODEL_FILE_NAME = "our-saved-model.pt"
+MODEL_FILE_NAME = "layer3_batch4_lr0001.pt"
 SIZE_OF_INPUT = 1137
 RANDOM_PROB = 0.0
 
@@ -35,16 +36,18 @@ def setup(self):
 
     :param self: This object is passed to all callbacks and you can set arbitrary values.
     """
+    # check if cuda is available and set device accordingly
+    self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+
     # check if sved version is available, otherwise initialize new model
     if os.path. isfile(MODEL_FILE_NAME):
-        self.model = torch.load(MODEL_FILE_NAME)
+        self.model = torch.load(MODEL_FILE_NAME, map_location=self.device)
         self.logger.info("Loaded saved model.")
     else:
         self.model = OurNeuralNetwork(SIZE_OF_INPUT)
         self.logger.info("Setting up model from Scratch.")
     
-    # check if cuda is available and set device accordingly
-    self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+    # set model to device
     self.model = self.model.to(self.device)
     print("Model runs on " + str(self.device))
     print("Number of parameters: ", sum(p.numel() for p in self.model.parameters() if p.requires_grad))
