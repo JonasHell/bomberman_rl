@@ -49,7 +49,7 @@ def setup(self):
     print("Model runs on " + str(self.device))
     print("Number of parameters: ", sum(p.numel() for p in self.model.parameters() if p.requires_grad))
     self.logger.info("Model runs on " + str(self.device))
-    self.logger.info("Model has ", sum(p.numel() for p in self.model.parameters() if p.requires_grad), " parameters")
+    self.logger.info("Model has " +str(sum(p.numel() for p in self.model.parameters() if p.requires_grad)) + " parameters")
 
     # make sure model is in eval mode
     self.model.eval()
