@@ -102,8 +102,8 @@ def game_events_occurred(self, old_game_state: dict, self_action: str, new_game_
             self.writer.add_scalar("training loss per step", loss, self.global_step)
             self.writer.add_scalar("training correct predictions", self.correct_counter, self.global_step)
 
-            for param in self.model.parameters():
-                print(torch.max(param.data))
+            #for param in self.model.parameters():
+                #print(torch.max(param.data))
 
             # set everything back for next batch
             # not sure if necessary, becuase I'm not sure when the setup method is called
@@ -131,6 +131,8 @@ def end_of_round(self, last_game_state: dict, last_action: str, events: List[str
 
     :param self: The same object that is passed to all of your callbacks.
     """
+    for param in self.model.parameters():
+      print(torch.max(param.data))
     print(f"end of round, {last_game_state['round']}, {last_game_state['step']}")
     print("************************************************************************")
     print()
