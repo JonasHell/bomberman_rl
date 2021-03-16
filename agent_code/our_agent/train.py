@@ -88,7 +88,7 @@ def game_events_occurred(self, old_game_state: dict, self_action: str, new_game_
             self.optimizer.step()
 
             # calculate some other metrics for printing and tensorboard
-            our_pred = np.array(ACTIONS)[torch.argmax(out, dim=1)]
+            our_pred = np.array(ACTIONS)[torch.argmax(out.cpu(), dim=1)]
             target_pred = np.array(ACTIONS)[self.targets]
 
             correct = np.sum((our_pred == target_pred)*1)
