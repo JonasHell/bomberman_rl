@@ -5,8 +5,8 @@ from callbacks import OurNeuralNetwork
 
 # number of parameters: 3.449.702 with 5 layer net with selu
 # number of parameters:   652.646 with 4 layer net with selu
-# number of parameters:   652.646 with 4 layer net with relu
-# number of parameters:   308.166 with 3 layer net with selu
+# number of parameters:   652.646 with 4 layer net with relu (1137->512)
+# number of parameters:   308.166 with 3 layer net with selu (1137->256)
 
 '''
 result = np.zeros((5, 5, 2))
