@@ -16,8 +16,8 @@ from modified_rule_based_agent import Modified_Rule_Based_Agent
 
 
 ACTIONS = ['UP', 'RIGHT', 'DOWN', 'LEFT', 'WAIT', 'BOMB']
-MODEL_FILE_NAME = "our-saved-model.pt"
-#MODEL_FILE_NAME = "layer3_batch4_lr0001.pt"
+#MODEL_FILE_NAME = "our-saved-model.pt"
+MODEL_FILE_NAME = "layer3_batch4_lr001_wd0005_sgd.pt"
 SIZE_OF_INPUT = 1137
 RANDOM_PROB = 0.0
 
@@ -43,9 +43,11 @@ def setup(self):
     if False:#os.path. isfile(MODEL_FILE_NAME):
         self.model = torch.load(MODEL_FILE_NAME, map_location=self.device)
         self.logger.info("Loaded saved model.")
+        print("Loaded saved Model.")
     else:
         self.model = OurNeuralNetwork(SIZE_OF_INPUT)
         self.logger.info("Setting up model from Scratch.")
+        print("Setting up model from Scratch.")
     
     # set model to device
     self.model = self.model.to(self.device)
