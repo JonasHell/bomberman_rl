@@ -18,7 +18,7 @@ from modified_rule_based_agent import Modified_Rule_Based_Agent
 
 
 ACTIONS = ['UP', 'RIGHT', 'DOWN', 'LEFT', 'WAIT', 'BOMB']
-MODEL_FILE_NAME = "7x7_layer3_batch8_lr001_sgd_rand10"
+MODEL_FILE_NAME = "7x7_layer3_batch8_lr001_sgd_rand30"
 
 
 def setup_training(self):
