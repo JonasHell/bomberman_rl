@@ -2,11 +2,14 @@ import os
 import pickle
 import random
 
-
 import numpy as np
+import torch
 
 #Import learning algorithm including hyperparameters
 from .train import QLearner
+from .train import OurNeuralNetwork
+
+MODEL_FILE_NAME = "DQNN.pt"
 
 """
 import types
@@ -53,7 +56,7 @@ def setup(self):
     """
 
     #make_keras_picklable()
-
+    
     if self.train or not os.path.isfile("my-saved-model.pt"):
         self.logger.info("Setting up model from scratch.")
         self.qlearner   = QLearner(self.logger)
@@ -62,6 +65,18 @@ def setup(self):
         with open("my-saved-model.pt", "rb") as file:
             self.qlearner = pickle.load(file)
             self.qlearner.is_training = False
+            self.qlearner.is_fit = True
+    '''
+    self.qlearner = QLearner(self.logger)
+    self.qlearner.is_training = False
+    self.qlearner.is_fit = True
+    '''
+    if os.path. isfile(MODEL_FILE_NAME):
+        #NN = OurNeuralNetwork(self.qlearner.features_size)
+        NN = torch.load(MODEL_FILE_NAME)
+        self.qlearner.PNN.load_state_dict(NN.state_dict())
+        self.qlearner.PNN.eval()
+        self.logger.info("Loaded parameters of NN.")
 
 
 def act(self, game_state: dict) -> str:
