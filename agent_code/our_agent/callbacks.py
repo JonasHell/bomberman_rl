@@ -18,7 +18,7 @@ from modified_rule_based_agent import Modified_Rule_Based_Agent
 ACTIONS = ['UP', 'RIGHT', 'DOWN', 'LEFT', 'WAIT', 'BOMB']
 #MODEL_FILE_NAME = "our-saved-model.pt"
 MODEL_FILE_NAME = "layer3_batch4_lr001_wd0005_sgd.pt"
-SIZE_OF_INPUT = 1137
+SIZE_OF_INPUT = 257
 RANDOM_PROB = 0.0
 
 
@@ -118,7 +118,7 @@ def state_to_features(game_state: dict) -> np.array:
     # initialize empty field
     # note: in the game we have a field of 17x17, but the borders are always
     # stone so we reduce the dimension to 15x15
-    hybrid_vectors = np.zeros((15, 15, 5), dtype=int)
+    hybrid_vectors = np.zeros((7, 7, 5), dtype=int)
     
     # check where there are stones on the field
     # just use the field without the borders (1:-1)
@@ -185,6 +185,22 @@ def state_to_features(game_state: dict) -> np.array:
 class OurNeuralNetwork(nn.Module):
     def __init__(self, input_size):
         super(OurNeuralNetwork, self).__init__()
+        self.linear1 = nn.Linear(input_size, 64) # input_size 257
+        self.linear2 = nn.Linear(64, 16)
+        self.linear3 = nn.Linear(16, 6)
+
+    def forward(self, x):
+        out = self.linear1(x)
+        out = F.selu(out)
+        out = self.linear2(out)
+        out = F.selu(out)
+        out = self.linear3(out)
+        return out
+
+
+    '''
+    def __init__(self, input_size):
+        super(OurNeuralNetwork, self).__init__()
         self.linear1 = nn.Linear(input_size, 256) # input_size 1137
         self.linear2 = nn.Linear(256, 64)
         self.linear3 = nn.Linear(64, 6)
@@ -202,7 +218,7 @@ class OurNeuralNetwork(nn.Module):
         #out = self.linear4(out)
         return out
 
-    '''
+    
     def init_old(self, input_size):
         super(OurNeuralNetwork, self).__init__()
         self.linear1 = nn.Linear(input_size, 2048)
