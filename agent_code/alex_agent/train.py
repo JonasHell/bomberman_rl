@@ -45,6 +45,7 @@ APPROACH_COIN_EVENT = "APPROACH_COIN"
 MOVING_AWAY_COIN_EVENT = "MOVING_AWAY_COIN"
 ALREADY_VISITED_EVENT = "ALREADY_VISITED"
 
+debug_messages: bool = False #print debuging messages while training/playing
 
 #Create folder with timestamp of current run
 def create_folder():
@@ -111,7 +112,7 @@ class QLearner:
         self.exploration_rate = self.exploration_max
 
         self.hyb_feat: bool = True #Use features from hybrid vector
-        self.use_cuda: bool = True #Use GPU to train
+        self.use_cuda: bool = False #Use GPU to train and play model
 
         # Double QNN
         self.QNN = True #Use a Q-Learning Neural Network (QNN) instead of Gradient Boosting
@@ -165,7 +166,7 @@ class QLearner:
             q_values = np.zeros(len(self.actions)).reshape(1, -1)
 
         proposed_action = self.actions[np.argmax(q_values[0])]
-        #print('state_sum=', np.sum(state), 'Q-values:', np.round(q_values[0], 4), '->', proposed_action)
+        if debug_messages: print('state_sum=', np.sum(state), 'Q-values:', np.round(q_values[0], 4), '->', proposed_action)
 
         if not self.hyb_feat: self.logger.info(f'Current state {state}')
         self.logger.info(f'Choosing {proposed_action} where {list(zip(self.actions, q_values[0]))}')
@@ -386,7 +387,7 @@ class QLearner:
         # Update TNN-parameters with PNN every TR steps
         if self.tr < self.TR: self.tr += 1
         else:
-            print('Loss:', loss)
+            if debug_messages: print('Loss:', loss)
             self.tr = 0
             self.TNN.load_state_dict(self.PNN.state_dict())
             self.TNN.eval()
@@ -573,21 +574,20 @@ def game_events_occurred(self, old_game_state: dict, self_action: str, new_game_
         
     if old_game_state != None:
         #Calculate nearest coin distance
-        if len(old_game_state['coins']) > 0:
+        if len(old_game_state['coins']) > 0 and len(new_game_state['coins']) > 0:
             old_coin_coords = np.moveaxis(np.array(old_game_state['coins']), -1, 0)
-        if len(new_game_state['coins']) > 0:
             new_coin_coords = np.moveaxis(np.array(new_game_state['coins']), -1, 0)
-        old_pos = old_game_state["self"][3]
-        new_pos = new_game_state["self"][3]
-        old_nearest_coin = np.min(np.abs(old_coin_coords[0] - old_pos[0]) + np.abs(old_coin_coords[1] - old_pos[1])) #Manhatten-distance
-        new_nearest_coin = np.min(np.abs(new_coin_coords[0] - new_pos[0]) + np.abs(new_coin_coords[1] - new_pos[1])) #Manhatten-distance
-        dist_diff = new_nearest_coin - old_nearest_coin
-        #print('Position:', new_pos ,'Distance to nearest coin:', new_nearest_coin)
-        self.logger.debug(f'Distance to nearest coin: {new_nearest_coin}')
-        if dist_diff < 0:
-            events.append(APPROACH_COIN_EVENT)
-        elif dist_diff > 0:
-            events.append(MOVING_AWAY_COIN_EVENT)
+            old_pos = old_game_state["self"][3]
+            new_pos = new_game_state["self"][3]
+            old_nearest_coin = np.min(np.abs(old_coin_coords[0] - old_pos[0]) + np.abs(old_coin_coords[1] - old_pos[1])) #Manhatten-distance
+            new_nearest_coin = np.min(np.abs(new_coin_coords[0] - new_pos[0]) + np.abs(new_coin_coords[1] - new_pos[1])) #Manhatten-distance
+            dist_diff = new_nearest_coin - old_nearest_coin
+            #print('Position:', new_pos ,'Distance to nearest coin:', new_nearest_coin)
+            self.logger.debug(f'Distance to nearest coin: {new_nearest_coin}')
+            if dist_diff < 0:
+                events.append(APPROACH_COIN_EVENT)
+            elif dist_diff > 0:
+                events.append(MOVING_AWAY_COIN_EVENT)
 
     x = new_game_state["self"][3][0]
     y = new_game_state["self"][3][1]
