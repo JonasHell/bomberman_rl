@@ -1,5 +1,6 @@
 import numpy as np
 import torch
+import torch.nn.functional as F
 from modified_rule_based_agent import Modified_Rule_Based_Agent
 from callbacks import OurNeuralNetwork
 
@@ -73,3 +74,7 @@ print(7%1)
 
 ACTIONS = np.array(['UP', 'RIGHT', 'DOWN', 'LEFT', 'WAIT', 'BOMB'])
 print(ACTIONS[[0, 1, 0, 5]])
+
+x = torch.tensor([0., 1., 2., 3., 4., 5.])
+print(F.softmax(x, dim=0))
+print(F.log_softmax(x, dim=0))
