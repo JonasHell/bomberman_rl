@@ -18,7 +18,7 @@ from modified_rule_based_agent import Modified_Rule_Based_Agent
 
 
 ACTIONS = ['UP', 'RIGHT', 'DOWN', 'LEFT', 'WAIT', 'BOMB']
-MODEL_FILE_NAME = "7x7_layer3_batch8_lr01_sgd_rand30"
+MODEL_FILE_NAME = "7x7_layer3_batch4_lr01_sgd_rand30"
 
 
 def setup_training(self):
@@ -33,7 +33,7 @@ def setup_training(self):
     self.criterion = nn.CrossEntropyLoss()
     #self.optimizer = optim.Adam(self.model.parameters(), lr=0.001, weight_decay=0.0005)
     self.optimizer = optim.SGD(self.model.parameters(), lr=0.01)
-    self.batch_size = 8
+    self.batch_size = 4
     
     # init counter
     self.global_step = 0
