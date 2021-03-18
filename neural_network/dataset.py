@@ -11,10 +11,11 @@ class BomberManDataSet(Dataset):
         inputs = []
         for filename in os.listdir(directory):
           print(filename)
-            if filename.startswith(start_of_filename):
-                content = np.genfromtxt(directory + filename, delimiter=",")
-                inputs.append(content)
-        
+          if filename.startswith(start_of_filename):
+            print(filename)
+            content = np.genfromtxt(filename, delimiter=",")
+            inputs.append(content)
+      
         # combine inputs to one large array
         data = np.concatenate(inputs, axis=0)
         print(data.shape)
