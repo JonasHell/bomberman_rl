@@ -6,7 +6,7 @@ from torch.utils.data import DataLoader
 
 from torch.utils.tensorboard import SummaryWriter
 
-from neural_network.dataset import BomberManDataSet
+from dataset import BomberManDataSet
 from neural_network.neural_network import OurNeuralNetwork
 
 
