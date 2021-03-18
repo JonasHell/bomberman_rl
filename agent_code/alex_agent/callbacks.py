@@ -58,27 +58,19 @@ def setup(self):
 
     #make_keras_picklable()
     
-    if self.train or not os.path.isfile("my-saved-model.pt"):
+    if self.train or not os.path.isfile(MODEL_FILE_NAME):
         self.logger.info("Setting up model from scratch.")
         self.qlearner   = QLearner(self.logger)
     else:
         self.logger.info("Loading model from saved state.")
-        with open("my-saved-model.pt", "rb") as file:
-            self.qlearner = pickle.load(file)
-            self.qlearner.is_training = False
-            self.qlearner.is_fit = True
-    '''
-    self.qlearner = QLearner(self.logger)
-    self.qlearner.is_training = False
-    self.qlearner.is_fit = True
-    '''
-    if os.path. isfile(MODEL_FILE_NAME):
-        #NN = OurNeuralNetwork(self.qlearner.features_size)
+        self.qlearner   = QLearner(self.logger)        
         NN = torch.load(MODEL_FILE_NAME)
         self.qlearner.PNN.load_state_dict(NN.state_dict())
         self.qlearner.PNN.eval()
         self.logger.info("Loaded parameters of NN.")
-
+        
+        self.qlearner.is_training = False
+        self.qlearner.is_fit = True
 
 def act(self, game_state: dict) -> str:
     """
