@@ -16,6 +16,8 @@ class BomberManDataSet(Dataset):
         
         # combine inputs to one large array
         data = np.concatenate(inputs, axis=0)
+        print(data.shape)
+        print(data)
         
         # divide data in features and label (=last column)
         # and convert to torch tensors
