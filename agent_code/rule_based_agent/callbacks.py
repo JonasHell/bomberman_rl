@@ -2,7 +2,12 @@ from collections import deque
 from random import shuffle
 
 import numpy as np
+from agent_code.our_agent.callbacks import state_to_features
 
+import os
+
+
+ACTIONS = ['UP', 'RIGHT', 'DOWN', 'LEFT', 'WAIT', 'BOMB']
 
 def look_for_targets(free_space, start, targets, logger=None):
     """Find direction of closest target that can be reached via free tiles.
@@ -64,7 +69,11 @@ def setup(self):
     file for debugging (see https://docs.python.org/3.7/library/logging.html).
     """
     # modified
-    #self.states = np.
+    self.states = []
+    self.preds = []
+    self.num = self.logger.handlers[0].baseFilename[-5]
+    if self.num not in ["0", "1", "2", "3"]:
+        self.num = ""
 
     self.logger.debug('Successfully entered setup code')
     np.random.seed()
@@ -207,4 +216,14 @@ def act(self, game_state):
             if a == 'BOMB':
                 self.bomb_history.append((x, y))
 
+            # modified
+            self.states.append(state_to_features(game_state))
+            self.preds.append(ACTIONS.index(a))
             return a
+
+# modified
+def save_data(self):
+    x = self.states
+    y = np.expand_dims(self.preds, 1)
+    np.savetxt("../../test_data/coins_" + self.num + ".csv", np.concatenate((x, y), axis=1), delimiter=",")
+    print("saved")

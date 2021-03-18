@@ -14,10 +14,12 @@ import numpy as np
 import settings as s
 from fallbacks import pygame
 
+# modified
 AGENT_API = {
     "callbacks": {
         "setup": ["self"],
         "act": ["self", "game_state: dict"],
+        "save_data": ["self"]
     },
     "train": {
         "setup_training": ["self"],
@@ -89,6 +91,10 @@ class Agent:
         if self.train:
             self.backend.send_event("setup_training")
             self.backend.get("setup_training")
+    
+    # modified
+    def save_data(self):
+        self.backend.send_event("save_data")
 
     def __str__(self):
         return f"Agent {self.name} under control of {self.code_name}"

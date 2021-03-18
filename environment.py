@@ -504,6 +504,8 @@ class BombeRLeWorld(GenericWorld):
             self.end_round()
         self.logger.info('SHUT DOWN')
         for a in self.agents:
+            # modified
+            a.save_data()
             # Send exit message to shut down agent
             self.logger.debug(f'Sending exit message to agent <{a.name}>')
 
