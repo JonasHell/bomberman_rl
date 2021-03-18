@@ -36,8 +36,8 @@ def create_folder():
     return mydir
 
 
-ROWS = 17
-COLS = 17
+ROWS = 7
+COLS = 7
 FEATURES_PER_FIELD = 7
 
 class OurNeuralNetwork(nn.Module):
@@ -90,10 +90,12 @@ class QLearner:
     Loss: List[float] = [0]
 
     def __init__(self, logger):
+        #Memory of the model, stores states and actions
         self.transitions = deque(maxlen=self.memory_size)
         self.logger      = logger
+        #Determines exploration vs exploitation
         self.exploration_rate = self.exploration_max
-        self.use_cuda: bool = False #Use GPU to train and play model
+        self.use_cuda: bool = True #Use GPU to train and play model
 
         # Double QNN
         self.QNN = True #Use a Q-Learning Neural Network (QNN) instead of Gradient Boosting
