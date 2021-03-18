@@ -30,9 +30,11 @@ def setup_training(self):
     :param self: This object is passed to all callbacks and you can set arbitrary values.
     """
     # set learning parameters
+    self.learning_rate = 0.1
+    self.schedule_param = 10000.
     self.criterion = nn.CrossEntropyLoss()
     #self.optimizer = optim.Adam(self.model.parameters(), lr=0.001, weight_decay=0.0005)
-    self.optimizer = optim.SGD(self.model.parameters(), lr=0.075)
+    #self.optimizer = optim.SGD(self.model.parameters(), lr=self.learning_rate)
     #self.optimizer = optim.Adam(self.model.parameters(), lr=0.1)
     self.batch_size = 1
     
@@ -83,6 +85,7 @@ def game_events_occurred(self, old_game_state: dict, self_action: str, new_game_
             self.logger.debug("Output calculated.")
 
             # actual training with loss calculation, back propagation and optimization step
+            self.optimizer = optim.SGD(self.model.parameters(), lr=self.learning_rate/(1 + self.global_step/self.schedule_param))
             loss = self.criterion(out, targets)
 
             self.model.zero_grad()

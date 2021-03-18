@@ -63,6 +63,9 @@ def setup(self):
     You can also use the self.logger object at any time to write to the log
     file for debugging (see https://docs.python.org/3.7/library/logging.html).
     """
+    # modified
+    #self.states = np.
+
     self.logger.debug('Successfully entered setup code')
     np.random.seed()
     # Fixed length FIFO queues to avoid repeating the same actions

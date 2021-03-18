@@ -1,8 +1,8 @@
 import numpy as np
 import torch
 import torch.nn.functional as F
-from modified_rule_based_agent import Modified_Rule_Based_Agent
-from callbacks import OurNeuralNetwork
+#from modified_rule_based_agent import Modified_Rule_Based_Agent
+#from callbacks import OurNeuralNetwork
 
 # number of parameters: 3.449.702 with 5 layer net with selu
 # number of parameters:   652.646 with 4 layer net with selu
@@ -63,7 +63,7 @@ ACTIONS = ['UP', 'RIGHT', 'DOWN', 'LEFT', 'WAIT', 'BOMB']
 print(ACTIONS)
 print(ACTIONS.index('DOWN'))
 #print(np.where(np.array(ACTIONS) == 'LEFT'))
-'''
+
 
 net = OurNeuralNetwork(1137)
 print(sum(p.numel() for p in net.parameters() if p.requires_grad))
@@ -78,3 +78,24 @@ print(ACTIONS[[0, 1, 0, 5]])
 x = torch.tensor([0., 1., 2., 3., 4., 5.])
 print(F.softmax(x, dim=0))
 print(F.log_softmax(x, dim=0))
+'''
+x = [[1, 2, 3],
+                [4, 5, 6],
+                [7, 8, 9],
+                [10, 11, 12]]
+y = np.expand_dims([5., 3., 8., 7.], 1)
+
+print(x)
+#print(x.shape)
+print(y)
+print(y.shape)
+data = np.concatenate((x, y), axis=1)
+print(data)
+np.savetxt("foo.csv", data, delimiter=",")
+
+load = np.genfromtxt('foo.csv', delimiter=',')
+print(load)
+xn = load[:, :-1]
+yn = load[:, -1]
+print(xn)
+print(yn)
