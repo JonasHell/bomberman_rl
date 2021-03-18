@@ -81,6 +81,7 @@ class OurNeuralNetwork(nn.Module):
         out = self.linear5(out)
         return out
 
+
 class ConvNeuralNetwork(nn.Module):
     def __init__(self, input_size): #15 x 15 x 7 (Walls, Crates, Coins, Bombs, Fire, Players, Enemies)
         super(OurNeuralNetwork, self).__init__()
