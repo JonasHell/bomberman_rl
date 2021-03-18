@@ -7,7 +7,7 @@ from torch.utils.data import DataLoader
 from torch.utils.tensorboard import SummaryWriter
 
 from dataset import BomberManDataSet
-from neural_network.neural_network import OurNeuralNetwork
+from neural_network import OurNeuralNetwork
 
 
 # hyperparameters
