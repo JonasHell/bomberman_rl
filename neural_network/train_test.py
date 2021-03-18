@@ -1,3 +1,5 @@
+import os
+
 import torch
 import torch.nn as nn
 from torch.utils.data import DataLoader
@@ -26,8 +28,12 @@ test_loader = DataLoader(test_set, batch_size=batch_size, shuffle=True)
 # summary writer for tensorboard
 writer = SummaryWriter("runs/" + name)
 
-# model
-model = OurNeuralNetwork(input_size).to(device)
+# load model or initialize new one
+if os.path.isfile(name+".pt"):
+    model = torch.load(name+".pt")
+    model = model.to(device)
+else:
+    model = OurNeuralNetwork(input_size).to(device)
 
 # define criterion and optimizer
 criterion = nn.CrossEntropyLoss()
