@@ -148,6 +148,8 @@ def end_of_round(self, last_game_state: dict, last_action: str, events: List[str
 
     # flush summary writer
     self.writer.flush()
+    if last_game_state['round'] == 10000:
+      self.writer.close()
 
     # save the model
     torch.save(self.model, MODEL_FILE_NAME+".pt")
