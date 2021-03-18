@@ -1,6 +1,13 @@
 import numpy as np
 import torch
+import torch.nn.functional as F
 from modified_rule_based_agent import Modified_Rule_Based_Agent
+from callbacks import OurNeuralNetwork
+
+# number of parameters: 3.449.702 with 5 layer net with selu
+# number of parameters:   652.646 with 4 layer net with selu
+# number of parameters:   652.646 with 4 layer net with relu (1137->512)
+# number of parameters:   308.166 with 3 layer net with selu (1137->256)
 
 '''
 result = np.zeros((5, 5, 2))
@@ -57,5 +64,17 @@ print(ACTIONS)
 print(ACTIONS.index('DOWN'))
 #print(np.where(np.array(ACTIONS) == 'LEFT'))
 '''
-print(torch.device('cuda' if torch.cuda.is_available() else 'cpu'))
-print(str(torch.device('cuda' if torch.cuda.is_available() else 'cpu')))
+
+net = OurNeuralNetwork(1137)
+print(sum(p.numel() for p in net.parameters() if p.requires_grad))
+
+print(5%1)
+print(0%1)
+print(7%1)
+
+ACTIONS = np.array(['UP', 'RIGHT', 'DOWN', 'LEFT', 'WAIT', 'BOMB'])
+print(ACTIONS[[0, 1, 0, 5]])
+
+x = torch.tensor([0., 1., 2., 3., 4., 5.])
+print(F.softmax(x, dim=0))
+print(F.log_softmax(x, dim=0))

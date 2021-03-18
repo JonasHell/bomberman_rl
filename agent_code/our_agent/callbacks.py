@@ -10,14 +10,16 @@ import torch.nn.functional as F
 import torchvision
 
 import sys
-sys.path.append('agent_code\our_agent')
+sys.path.append('agent_code/our_agent')
+sys.path.append('bomberman_rl/agent_code/our_agent')
 from modified_rule_based_agent import Modified_Rule_Based_Agent
 
 
 ACTIONS = ['UP', 'RIGHT', 'DOWN', 'LEFT', 'WAIT', 'BOMB']
-MODEL_FILE_NAME = "our-saved-model.pt"
-SIZE_OF_INPUT = 1137
-RANDOM_PROB = 0.1
+#MODEL_FILE_NAME = "our-saved-model.pt"
+MODEL_FILE_NAME = "layer3_batch4_lr001_wd0005_sgd.pt"
+SIZE_OF_INPUT = 257
+RANDOM_PROB = 0.0
 
 
 def setup(self):
@@ -34,18 +36,25 @@ def setup(self):
 
     :param self: This object is passed to all callbacks and you can set arbitrary values.
     """
+    # check if cuda is available and set device accordingly
+    self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+
     # check if sved version is available, otherwise initialize new model
-    if os.path. isfile(MODEL_FILE_NAME):
-        self.model = torch.load(MODEL_FILE_NAME)
+    if False:#os.path. isfile(MODEL_FILE_NAME):
+        self.model = torch.load(MODEL_FILE_NAME, map_location=self.device)
         self.logger.info("Loaded saved model.")
+        print("Loaded saved Model.")
     else:
         self.model = OurNeuralNetwork(SIZE_OF_INPUT)
         self.logger.info("Setting up model from Scratch.")
+        print("Setting up model from Scratch.")
     
-    # check if cuda is available and set device accordingly
-    self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+    # set model to device
     self.model = self.model.to(self.device)
+    print("Model runs on " + str(self.device))
+    print("Number of parameters: ", sum(p.numel() for p in self.model.parameters() if p.requires_grad))
     self.logger.info("Model runs on " + str(self.device))
+    self.logger.info("Model has " +str(sum(p.numel() for p in self.model.parameters() if p.requires_grad)) + " parameters")
 
     # make sure model is in eval mode
     self.model.eval()
@@ -61,11 +70,6 @@ def act(self, game_state: dict) -> str:
     :param game_state: The dictionary that describes everything on the board.
     :return: The action to take as a string.
     """
-    # model.eval()
-    # out = model()
-    # random nötig?
-    # return out
-
     # exploration only when training and with prob = RANDOM_PROB
     if self.train and random.random() < RANDOM_PROB:
         self.logger.debug("Choosing action as random for exploration.")
@@ -74,6 +78,7 @@ def act(self, game_state: dict) -> str:
 
     state_vector = torch.tensor(state_to_features(game_state), dtype=torch.float).to(self.device)
     out = self.model(state_vector)
+   
     self.logger.debug("Querring model for best action.")
     return ACTIONS[torch.argmax(out)]
 
@@ -113,7 +118,7 @@ def state_to_features(game_state: dict) -> np.array:
     # initialize empty field
     # note: in the game we have a field of 17x17, but the borders are always
     # stone so we reduce the dimension to 15x15
-    hybrid_vectors = np.zeros((15, 15, 5), dtype=int)
+    hybrid_vectors = np.zeros((7, 7, 5), dtype=int)
     
     # check where there are stones on the field
     # just use the field without the borders (1:-1)
@@ -180,13 +185,49 @@ def state_to_features(game_state: dict) -> np.array:
 class OurNeuralNetwork(nn.Module):
     def __init__(self, input_size):
         super(OurNeuralNetwork, self).__init__()
+        self.linear1 = nn.Linear(input_size, 64) # input_size 257
+        self.linear2 = nn.Linear(64, 16)
+        self.linear3 = nn.Linear(16, 6)
+
+    def forward(self, x):
+        out = self.linear1(x)
+        out = F.selu(out)
+        out = self.linear2(out)
+        out = F.selu(out)
+        out = self.linear3(out)
+        return out
+
+
+    '''
+    def __init__(self, input_size):
+        super(OurNeuralNetwork, self).__init__()
+        self.linear1 = nn.Linear(input_size, 256) # input_size 1137
+        self.linear2 = nn.Linear(256, 64)
+        self.linear3 = nn.Linear(64, 6)
+        #self.linear2 = nn.Linear(512, 128)
+        #self.linear3 = nn.Linear(128, 32)
+        #self.linear4 = nn.Linear(32, 6)
+
+    def forward(self, x):
+        out = self.linear1(x)
+        out = F.selu(out)
+        out = self.linear2(out)
+        out = F.selu(out)
+        out = self.linear3(out)
+        #out = F.selu(out)
+        #out = self.linear4(out)
+        return out
+
+    
+    def init_old(self, input_size):
+        super(OurNeuralNetwork, self).__init__()
         self.linear1 = nn.Linear(input_size, 2048)
         self.linear2 = nn.Linear(2048, 512)
         self.linear3 = nn.Linear(512, 128)
         self.linear4 = nn.Linear(128, 32)
         self.linear5 = nn.Linear(32, 6)
 
-    def forward(self, x):
+    def forward_old(self, x):
         # könnte auch andere activation function nehmen
         out = self.linear1(x)
         out = F.selu(out)
@@ -199,3 +240,4 @@ class OurNeuralNetwork(nn.Module):
         out = self.linear5(out)
         # out = F.softmax nicht nötig, weil CrossEntropy das auch anwendet
         return out
+    '''

@@ -3,9 +3,9 @@ import logging
 from fallbacks import pygame
 
 # Game properties
-COLS = 17
-ROWS = 17
-CRATE_DENSITY = 0.75
+COLS = 9            # default = 17
+ROWS = 9            # default = 17
+CRATE_DENSITY = 0   # default = 0.75
 MAX_AGENTS = 4
 
 # Round properties

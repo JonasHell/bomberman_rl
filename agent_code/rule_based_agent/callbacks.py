@@ -138,9 +138,10 @@ def act(self, game_state):
     shuffle(action_ideas)
 
     # Compile a list of 'targets' the agent should head towards
-    dead_ends = [(x, y) for x in range(1, 16) for y in range(1, 16) if (arena[x, y] == 0)
+    # modified (16-->8)
+    dead_ends = [(x, y) for x in range(1, 8) for y in range(1, 8) if (arena[x, y] == 0)
                  and ([arena[x + 1, y], arena[x - 1, y], arena[x, y + 1], arena[x, y - 1]].count(0) == 1)]
-    crates = [(x, y) for x in range(1, 16) for y in range(1, 16) if (arena[x, y] == 1)]
+    crates = [(x, y) for x in range(1, 8) for y in range(1, 8) if (arena[x, y] == 1)]
     targets = coins + dead_ends + crates
     # Add other agents as targets if in hunting mode or no crates/coins left
     if self.ignore_others_timer <= 0 or (len(crates) + len(coins) == 0):
