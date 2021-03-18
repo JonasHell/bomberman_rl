@@ -62,6 +62,33 @@ class OurNeuralNetwork(nn.Module):
         out = self.linear5(out)
         return out
 
+
+class ConvNeuralNetwork(nn.Module):
+    def __init__(self, input_size): #15 x 15 x 7 (Walls, Crates, Coins, Bombs, Fire, Players, Enemies)
+        super(OurNeuralNetwork, self).__init__()
+        self.conv1 = nn.Conv2d(7, 28, kernel_size=5)
+        self.conv2 = nn.Conv2d(10, 20, kernel_size=3)
+        #self.conv_dropout = nn.Dropout2d()
+        input_size = np.int((input_size-5) + 1) #after conv1 =11
+        input_size = np.int(np.ceil((input_size-2)/2) + 1) #after max_pool2d =6
+        input_size = np.int((input_size-3) + 1) #after conv2 =4
+        input_size = 20*input_size*input_size
+        self.linear1 = nn.Linear(input_size, 40)
+        self.linear2 = nn.Linear(40, 6)
+
+    def forward(self, x):
+        # könnte auch andere activation function nehmen
+        out = self.conv1(x)
+        out = F.max_pool2d(out, kernel_size=2, stride=2)
+        out = F.selu(out)
+        out = self.conv2(out)
+        out = F.selu(out)
+        out = out.view(-1, 320)
+        out = self.linear1(out)
+        out = F.selu(out)
+        out = self.linear2(out)
+        return out
+
 class QLearner:
     #Lower alpha means slower but more stable convergence
     alpha: float = 0.5  
