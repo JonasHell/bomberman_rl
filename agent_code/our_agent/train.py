@@ -12,9 +12,9 @@ import torchvision
 
 from torch.utils.tensorboard import SummaryWriter
 
-from callbacks import state_to_features
+from agent_code.our_agent.callbacks import state_to_features
 
-from modified_rule_based_agent import Modified_Rule_Based_Agent
+from agent_code.our_agent.modified_rule_based_agent import Modified_Rule_Based_Agent
 
 
 ACTIONS = ['UP', 'RIGHT', 'DOWN', 'LEFT', 'WAIT', 'BOMB']
