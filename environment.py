@@ -340,7 +340,8 @@ class BombeRLeWorld(GenericWorld):
 
         # Distribute coins evenly
         self.coins = []
-        """coin_pattern = np.array([
+        '''
+        coin_pattern = np.array([
             [1, 1, 1],
             [0, 0, 1],
         ])
@@ -351,7 +352,8 @@ class BombeRLeWorld(GenericWorld):
                     if coin_pattern[i, j] == 1:
                         self.coins.append(Coin((x + i, x + j), self.arena[x+i,x+j] == 0))
                         coins[x + i, x + j] += 1
-        """                
+        ''' 
+        ''' 
         for i in range(1):
             for j in range(1):
                 n_crates = (self.arena[1 + 5 * i:6 + 5 * i, 1 + 5 * j:6 + 5 * j] == 1).sum()
@@ -379,7 +381,7 @@ class BombeRLeWorld(GenericWorld):
                     elif self.arena[x, y] == 1:
                         self.coins.append(Coin((x, y)))
                         break
-        '''
+        
         # Reset agents and distribute starting positions
         for agent in self.agents:
             agent.start_round()
