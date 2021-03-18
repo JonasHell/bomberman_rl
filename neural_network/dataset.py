@@ -10,6 +10,7 @@ class BomberManDataSet(Dataset):
         # read csv files and append them to list
         inputs = []
         for filename in os.listdir(directory):
+          print(filename)
             if filename.startswith(start_of_filename):
                 content = np.genfromtxt(directory + filename, delimiter=",")
                 inputs.append(content)
