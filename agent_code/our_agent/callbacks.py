@@ -19,7 +19,7 @@ ACTIONS = ['UP', 'RIGHT', 'DOWN', 'LEFT', 'WAIT', 'BOMB']
 #MODEL_FILE_NAME = "our-saved-model.pt"
 MODEL_FILE_NAME = "layer3_batch4_lr001_wd0005_sgd.pt"
 SIZE_OF_INPUT = 257
-RANDOM_PROB = 0.3
+RANDOM_PROB = 0.0
 
 
 def setup(self):
