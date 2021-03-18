@@ -496,7 +496,7 @@ def state_to_features_hybrid_vec(game_state: dict) -> np.array:
          #Value is 1 if enemy cannot place bomb and 2 if otherwise
         hybrid_vectors[enemy[3][0],enemy[3][1], 5] = 1 + int(enemy[2])
 
-    # add own position and availability of bomb as 3 additional entries at the end
+    # add player coordinates
     hybrid_vectors[ game_state['self'][3][0], game_state['self'][3][1], 6] = 1 + int(game_state['self'][2])
 
     return hybrid_vectors # len(hyb_vec) = (17 x 17 x 7) = 2023
