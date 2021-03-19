@@ -129,8 +129,8 @@ for epoch in range(num_of_epochs):
         running_loss_test = 0
         running_correct_test = 0
 
-  # save model
-  torch.save(model, "neural_network_pretraining/"+name+".pt")
+    # save model
+    torch.save(model, "neural_network_pretraining/"+name+".pt")
 
 # flush and close writer
 writer.flush()
