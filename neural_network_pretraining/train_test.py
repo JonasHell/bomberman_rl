@@ -13,7 +13,7 @@ from neural_network import OurNeuralNetwork
 
 # hyperparameters
 input_size = 1137
-num_of_epochs = 50
+num_of_epochs = 100
 batch_size = 32
 learning_rate = 0.01
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
@@ -86,8 +86,8 @@ for epoch in range(num_of_epochs):
         # print and tensorboard output
         if (batch+1) % 100 == 0:
             print(f"[{epoch+1}/{num_of_epochs}] [{batch+1}/{num_total_steps_train}] loss={loss.item():.4f}, acc={correct*100./batch_size}%")
-            writer.add_scalar('training loss', running_loss_train/100, epoch*num_total_steps_train+batch)
-            writer.add_scalar('training accuracy', running_correct_train/100, epoch*num_total_steps_train+batch)
+            writer.add_scalar('train loss', running_loss_train/100, epoch*num_total_steps_train+batch)
+            writer.add_scalar('train accuracy', running_correct_train/100, epoch*num_total_steps_train+batch)
 
             # set train matrics back to zero
             running_loss_train = 0
@@ -122,12 +122,16 @@ for epoch in range(num_of_epochs):
 
         # print and tensorboard
         print(f"test: [{epoch+1}/{num_of_epochs}] loss={running_loss_test/num_total_steps_test:.4f}, acc={running_correct_test*100./num_total_steps_test/batch_size}%")
-        writer.add_scalar('training loss', running_loss_test/num_total_steps_test, epoch)
-        writer.add_scalar('training accuracy', running_correct_test/num_total_steps_test/batch_size, epoch)
+        writer.add_scalar('test loss', running_loss_test/num_total_steps_test, epoch)
+        writer.add_scalar('test accuracy', running_correct_test/num_total_steps_test/batch_size, epoch)
 
         # set test matrics back to zero
         running_loss_test = 0
         running_correct_test = 0
 
-    # save model
-    torch.save(model, "neural_network_pretraining/"+name+".pt")
+  # save model
+  torch.save(model, "neural_network_pretraining/"+name+".pt")
+
+# flush and close writer
+writer.flush()
+writer.close()
