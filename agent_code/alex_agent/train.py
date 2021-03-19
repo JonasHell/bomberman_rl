@@ -36,8 +36,8 @@ def create_folder():
     return mydir
 
 
-ROWS = 7
-COLS = 7
+ROWS = 17
+COLS = 17
 FEATURES_PER_FIELD = 7
 
 class OurNeuralNetwork(nn.Module):
@@ -62,32 +62,122 @@ class OurNeuralNetwork(nn.Module):
         out = self.linear5(out)
         return out
 
-
 class ConvNeuralNetwork(nn.Module):
-    def __init__(self, input_size): #15 x 15 x 7 (Walls, Crates, Coins, Bombs, Fire, Players, Enemies)
-        super(OurNeuralNetwork, self).__init__()
-        self.conv1 = nn.Conv2d(FEATURES_PER_FIELD, 32, kernel_size=2, 1)
+    def init(self): #17 x 17 x 7 (Walls, Crates, Coins, Bombs, Fire, Players, Enemies)
+        super(OurNeuralNetwork, self).init()
+        self.conv1 = nn.Conv2d(7, 28, kernel_size=3)
         self.conv2 = nn.Conv2d(10, 20, kernel_size=3)
-        #self.conv_dropout = nn.Dropout2d()
-        input_size = np.int((input_size-5) + 1) #after conv1 =11
-        input_size = np.int(np.ceil((input_size-2)/2) + 1) #after max_pool2d =6
-        input_size = np.int((input_size-3) + 1) #after conv2 =4
-        input_size = 20*input_size*input_size
-        self.linear1 = nn.Linear(input_size, 40)
+        self.linear1 = nn.Linear(20, 40)
         self.linear2 = nn.Linear(40, 6)
 
     def forward(self, x):
         # könnte auch andere activation function nehmen
         out = self.conv1(x)
+        print(out.shape)
         out = F.max_pool2d(out, kernel_size=2, stride=2)
+        print(out.shape)
         out = F.selu(out)
+        print(out.shape)
         out = self.conv2(out)
+        print(out.shape)
         out = F.selu(out)
+        print(out.shape)
         out = out.view(-1, 320)
+        print(out.shape)
         out = self.linear1(out)
+        print(out.shape)
         out = F.selu(out)
+        print(out.shape)
         out = self.linear2(out)
+        print(out.shape)
         return out
+
+
+class Network(nn.Module):
+    def __init__(self, input_size):
+        super().__init__()
+        
+        # Inputs to hidden layer linear transformation
+        self.hidden = nn.Linear(input_size, 256)
+        # Output layer, 10 units - one for each digit
+        self.output = nn.Linear(256, 6)
+        
+        # Define sigmoid activation and softmax output 
+        self.sigmoid = nn.Sigmoid()
+        self.softmax = nn.Softmax(dim=1)
+        
+    def forward(self, x):
+        # Pass the input tensor through each of our operations
+        x = self.hidden(x)
+        x = self.sigmoid(x)
+        x = self.output(x)
+        x = self.softmax(x)
+        
+        return x
+
+class NeuralNet(nn.Module):
+    def __init__(self):
+        super(NeuralNet, self).__init__()
+        self.conv = nn.Conv2d(7, 32, kernel_size=4)
+        self.pool = nn.MaxPool2d(2)
+        self.hidden= nn.Linear(32*7*7, 128)
+        self.drop = nn.Dropout(0.2)
+        self.out = nn.Linear(128, 6)
+        self.act = nn.ReLU()
+
+    def forward(self, x):
+        x = self.act(self.conv(x)) # [batch_size, 28, 26, 26]
+        print("First step: ",x.shape)
+        x = self.pool(x) # [batch_size, 28, 13, 13]
+        print("Second step: ",x.shape)
+        x = x.view(x.size(0), -1) # [batch_size, 28*13*13=4732]
+        print("Third step: ",x.shape)
+        x = self.act(self.hidden(x)) # [batch_size, 128]
+        print("Fourth step: ",x.shape)
+        x = self.drop(x)
+        print("Fifth step: ",x.shape)
+        x = self.out(x) # [batch_size, 10]
+        print("Sixth step: ",x.shape)
+        return x
+
+  
+class DQN_CNN_2015(nn.Module):
+    def __init__(self, num_classes=6, init_weights=True):
+        super().__init__()
+
+        self.cnn = nn.Sequential(nn.Conv2d(4, 32, kernel_size=2, stride=1),
+                                        nn.ReLU(True),
+                                        nn.Conv2d(32, 64, kernel_size=2, stride=1),
+                                        nn.ReLU(True),
+                                        nn.Conv2d(64, 64, kernel_size=2, stride=1),
+                                 nn.ReLU(True)
+                                        )
+        self.classifier = nn.Sequential(nn.Linear(7*7*64, 512),
+                                        nn.ReLU(True),
+                                        nn.Linear(512, num_classes)
+                                        )
+        if init_weights:
+            self._initialize_weights()
+
+    def forward(self, x):
+        x = self.cnn(x)
+        x = torch.flatten(x, start_dim=1)
+        x = self.classifier(x)
+        return x
+
+    def _initialize_weights(self):
+        for m in self.modules():
+            if isinstance(m, nn.Conv2d):
+                nn.init.kaiming_normal_(m.weight, mode='fan_out', nonlinearity='relu')
+                if m.bias is not None:
+                    nn.init.constant_(m.bias, 0.0)
+            elif isinstance(m, nn.BatchNorm2d):
+                nn.init.constant_(m.weight, 1.0)
+                nn.init.constant_(m.bias, 0.0)
+            elif isinstance(m, nn.Linear):
+                nn.init.kaiming_normal_(m.weight, mode='fan_out', nonlinearity='relu')
+                nn.init.constant_(m.bias, 0.0)
+
 
 class QLearner:
     #Lower alpha means slower but more stable convergence
@@ -128,8 +218,8 @@ class QLearner:
 
         # Double QNN
         self.features_size = ROWS*COLS*FEATURES_PER_FIELD #8
-        self.TNN = OurNeuralNetwork(self.features_size) #Target Neural Network (TNN)
-        self.PNN = OurNeuralNetwork(self.features_size) #Prediction Neural Network (PNN)
+        self.TNN = NeuralNet() #Target Neural Network (TNN)
+        self.PNN = NeuralNet() #Prediction Neural Network (PNN)
         if self.use_cuda:
             self.TNN = self.TNN.cuda()
             self.PNN = self.PNN.cuda()
@@ -162,7 +252,7 @@ class QLearner:
         #If neural network is fit, have NN predict next move
         if self.is_fit:
             self.logger.debug(f'Predict q value array in step {game_state["step"]}')
-            q_values = self.PNN_predict(state).reshape(1, -1)
+            q_values = self.PNN_predict([state]).reshape(1, -1)
         #Else, take random decision
         else:
             self.logger.debug(f'Initialised q value array in step {game_state["step"]}')
@@ -197,38 +287,6 @@ class QLearner:
         
         #Sample random batch of experiences
         batch = random.sample(self.transitions, self.batch_size)
-        
-        
-            #Sample random batch of experiences
-        batch = random.sample(self.transitions, self.batch_size)
-
-        #Iterate through batch and generate training data
-        for state, action, next_state, reward, game_over in batch:
-            q_update = reward
-                
-            if self.is_fit:
-                if not game_over:
-                    q_update += self.gamma * np.amax(self.model.predict(next_state.reshape(1, -1))[0])
-                #self.logger.debug(f'Model fit before updating Q value.')
-
-                #predict takes n_samples times n_features as argument
-                #therefore we need to reshape
-                q_values  = self.model.predict(state.reshape(1, -1))
-            
-            else:
-                q_values = np.ones(len(self.actions)).reshape(1, -1) * 35
-            
-            action_id = self.action_id[action]
-                
-            #self.logger.debug(f'Choosing action {action} we obtained reward {reward} and Q value = {q_values[0][action_id]} changed to Q = {q_update} after update in given state.')
-
-            q_values[0][action_id] = (1 - self.alpha) * q_values[0][action_id] + self.alpha * q_update
-
-        self.is_fit = True
-        self.exploration_rate *= self.exploration_decay
-        self.exploration_rate = max(self.exploration_min, self.exploration_rate)
-
-
 
         #Run batch on NN
         self.NN_update(batch)
@@ -245,7 +303,7 @@ class QLearner:
         batch = np.array(batch, dtype=object)
        
         #Assemble arrays of initial and final states as well as rewards and actions
-        initial_states = np.concatenate(batch[:, 0]).reshape(batch_size, self.features_size)
+        initial_states = np.stack(batch[:, 0]) #, self.features_size)
         actions        = [self.action_id[_] for _ in batch[:, 1]] #actions from 0 to 5
         rewards        = np.array(batch[:, 3], dtype=np.float32)
 
@@ -257,8 +315,10 @@ class QLearner:
         if self.use_cuda: q_values = q_values.cuda()
 
         #Q-values of actions chosen in each initial state
-        predict_q = q_values[:, actions] 
+        predict_q = q_values[np.arange(self.batch_size), actions] 
         if self.use_cuda: predict_q = predict_q.cuda()
+
+        
 
         #Form tensor from rewards to compute targets for Q matrix regression
         target_q = torch.Tensor(rewards)
@@ -270,7 +330,7 @@ class QLearner:
         non_terminal_batch = batch[non_terminal, :] #exclude transitions which ended in a game_over
         if len(non_terminal_batch) > 0:
             #Form tensor from new states
-            new_states     = np.concatenate(non_terminal_batch[:, 2]).reshape(len(non_terminal_batch), self.features_size)
+            new_states     = np.stack(non_terminal_batch[:, 2])#.reshape(len(non_terminal_batch), self.features_size)
             new_states     = torch.tensor(new_states).float()
             if self.use_cuda: new_states = new_states.cuda()
 
@@ -281,8 +341,7 @@ class QLearner:
 
             #Only update Q value with non-terminal states with predicted Q values
             mask = torch.tensor(non_terminal)
-            target_q[mask, :] += self.gamma * maxq_actions
-            print(maxq_actions.shape, target_q[mask, :].shape)
+            target_q[mask] += self.gamma * maxq_actions
 
         
 
@@ -361,7 +420,7 @@ def setup_training(self):
 
     self.step_counter = 0
     self.steps_before_replay = 4
-    self.num_rounds = 100
+    self.num_rounds = 1000
 
 def game_events_occurred(self, old_game_state: dict, self_action: str, new_game_state: dict, events: List[str]):
     """
@@ -515,15 +574,15 @@ def state_to_features_hybrid_vec(game_state: dict) -> np.array:
     # they are called hybrid vectors
 
     # initialize empty field
-    hybrid_vectors = np.zeros((COLS, ROWS, FEATURES_PER_FIELD), dtype=int)
+    hybrid_vectors = np.zeros((FEATURES_PER_FIELD, COLS, ROWS), dtype=int)
     
     # check where there are stones on the field)
     # set the first entry in the vector to 1
-    hybrid_vectors[ game_state['field'] == -1, 0 ] = 1
+    hybrid_vectors[0, game_state['field'] == -1] = 1
 
     # check where there are crates
     # set the second entry in the vector to 1
-    hybrid_vectors[ game_state['field'] ==  1, 1 ] = 1
+    hybrid_vectors[1, game_state['field'] ==  1] = 1
 
     # check where free coins are
     # set the third entry in the vector to 1
@@ -531,28 +590,28 @@ def state_to_features_hybrid_vec(game_state: dict) -> np.array:
     # https://stackoverflow.com/questions/42537956/slice-numpy-array-using-list-of-coordinates
     if len(game_state['coins']) > 0:
         coin_coords = np.moveaxis(np.array(game_state['coins']), -1, 0)
-        hybrid_vectors[ coin_coords[0], coin_coords[1], 2 ] = 1
-
+        hybrid_vectors[2, coin_coords[0], coin_coords[1]] = 1
+    
     # check where bombs are
     # set the fourth entry in the vector to 1
     # discard the time since this can be learned by the model because we
     # use a LSTM network
     if len(game_state['bombs']) > 0:
         bomb_coords = np.array([[bomb[0][0], bomb[0][1], bomb[1]] for bomb in game_state['bombs']]).T
-        hybrid_vectors[ bomb_coords[0], bomb_coords[1], 3 ] = bomb_coords[2]
+        hybrid_vectors[3, bomb_coords[0], bomb_coords[1]] = bomb_coords[2]
 
     # check where fire is
     # set the fifth entry in the vector to 1
-    hybrid_vectors[ :, :, 4 ] = game_state['explosion_map']
+    hybrid_vectors[4, :, :] = game_state['explosion_map']
 
     # add enemy coords and their bomb boolean as additional entries at the end
     # non-existing enemies have -1 at each position as default
     for i in range(len(game_state['others'])):
         enemy = game_state['others'][i]
          #Value is 1 if enemy cannot place bomb and 2 if otherwise
-        hybrid_vectors[enemy[3][0],enemy[3][1], 5] = 1 + int(enemy[2])
-
+        hybrid_vectors[5, enemy[3][0],enemy[3][1]] = 1 + int(enemy[2])
+    
     # add player coordinates
-    hybrid_vectors[ game_state['self'][3][0], game_state['self'][3][1], 6] = 1 + int(game_state['self'][2])
+    hybrid_vectors[6, game_state['self'][3][0], game_state['self'][3][1]] = 1 + int(game_state['self'][2])
 
-    return hybrid_vectors # len(hyb_vec) = (17 x 17 x 7) = 2023
+    return hybrid_vectors
