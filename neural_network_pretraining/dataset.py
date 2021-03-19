@@ -6,13 +6,12 @@ from torch.utils.data import Dataset
 
 class BomberManDataSet(Dataset):
     def __init__(self, directory, start_of_filename):
-
         # read csv files and append them to list
         features_input_list = []
         labels_input_list = []
         for filename in os.listdir(directory):
             if filename.startswith(start_of_filename):
-                loaded = np.load(filename)
+                loaded = np.load(directory + filename)
                 features_input_list.append(loaded["features"])
                 labels_input_list.append(loaded["labels"])
                 #content = np.genfromtxt(directory + filename, delimiter=",")

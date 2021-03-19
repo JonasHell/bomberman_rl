@@ -1,4 +1,5 @@
 import os
+import sys
 
 import torch
 import torch.nn as nn
@@ -11,7 +12,7 @@ from neural_network import OurNeuralNetwork
 
 
 # hyperparameters
-input_size = 257
+input_size = 1137
 num_of_epochs = 50
 batch_size = 32
 learning_rate = 0.01
@@ -19,7 +20,7 @@ device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 name = "15x15_ep"+str(num_of_epochs)+"_bs"+str(batch_size)+"_lr"+str(learning_rate)
 
 # data sets and data loaders
-train_set = BomberManDataSet("neural_network_pretraining/training_data/", "coin")
+train_set = BomberManDataSet("neural_network_pretraining/train_data/", "coin")
 test_set = BomberManDataSet("neural_network_pretraining/test_data/", "coin")
 
 train_loader = DataLoader(train_set, batch_size=batch_size, shuffle=True)
@@ -30,7 +31,7 @@ writer = SummaryWriter("runs/" + name)
 
 # load model or initialize new one
 if os.path.isfile("neural_network_pretraining/"+name+".pt"):
-    model = torch.load(name+".pt")
+    model = torch.load("neural_network_pretraining/"+name+".pt")
     model = model.to(device)
 else:
     model = OurNeuralNetwork(input_size).to(device)
