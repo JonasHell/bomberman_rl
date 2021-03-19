@@ -22,7 +22,7 @@ class BomberManDataSet(Dataset):
         # divide data in features and label (=last column)
         # and convert to torch tensors
         self.x = torch.tensor(data[:, :-1], dtype=torch.float)
-        self.y = torch.tensor(data[:, -1], dtype=torch.int)
+        self.y = torch.tensor(data[:, -1], dtype=torch.int).long()
         
     def __len__(self):
         return len(self.y)
