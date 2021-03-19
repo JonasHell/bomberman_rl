@@ -12,15 +12,15 @@ from neural_network import OurNeuralNetwork
 
 # hyperparameters
 input_size = 257
-num_of_epochs = 20
+num_of_epochs = 50
 batch_size = 32
 learning_rate = 0.01
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-name = "7x7_ep"+str(num_of_epochs)+"_bs"+str(batch_size)+"_lr"+str(learning_rate)
+name = "15x15_ep"+str(num_of_epochs)+"_bs"+str(batch_size)+"_lr"+str(learning_rate)
 
 # data sets and data loaders
-train_set = BomberManDataSet("training_data/", "coin")
-test_set = BomberManDataSet("test_data/", "coin")
+train_set = BomberManDataSet("neural_network_pretraining/training_data/", "coin")
+test_set = BomberManDataSet("neural_network_pretraining/test_data/", "coin")
 
 train_loader = DataLoader(train_set, batch_size=batch_size, shuffle=True)
 test_loader = DataLoader(test_set, batch_size=batch_size, shuffle=True)

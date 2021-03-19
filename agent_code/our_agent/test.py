@@ -81,27 +81,37 @@ print(F.softmax(x, dim=0))
 print(F.log_softmax(x, dim=0))
 '''
 x = [np.array([1, 2, 3]),
-                np.array([4, 5, 6]),
-                np.array([7, 8, 9]),
-                np.array([10, 11, 12])]
-y = np.expand_dims([5., 3., 8., 7.], 1)
+     np.array([4, 5, 6]),
+     np.array([7, 8, 9]),
+     np.array([10, 11, 12])]
+
+y = [5., 3., 8., 7.]
 
 print(x)
 #print(x.shape)
 print(y)
-print(y.shape)
-data = np.concatenate((x, y), axis=1)
-print(data)
-np.savetxt("foo.csv", data, delimiter=",")
+#print(y.shape)
+#data = np.concatenate((x, y), axis=1)
+#print(data)
+print()
+#np.savetxt("foo.csv", data, delimiter=",")
+np.savez_compressed("foo", features=x, labels=y)
+load = np.load("foo.npz")
+print(load["features"])
+print(load["labels"])
 
-load = np.genfromtxt('foo.csv', delimiter=',')
+print(np.concatenate([y for _ in range(3)]))
+
+print(x)
+print(np.array(x))
+print(np.array(x, dtype=np.float32))
+'''
+#load = np.genfromtxt('foo', delimiter=',')
+load_comp = np.load("foo.npz")
+load = load_comp['data']
 print(load)
 xn = load[:, :-1]
 yn = load[:, -1]
 print(xn)
 print(yn)
-
-ACTIONS = ['UP', 'RIGHT', 'DOWN', 'LEFT', 'WAIT', 'BOMB']
-print(ACTIONS.index("DOWN"))
-
-print(os.getcwd())
+'''
