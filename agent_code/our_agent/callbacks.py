@@ -118,7 +118,7 @@ def state_to_features(game_state: dict) -> np.array:
     # initialize empty field
     # note: in the game we have a field of 17x17, but the borders are always
     # stone so we reduce the dimension to 15x15
-    hybrid_vectors = np.zeros((7, 7, 5), dtype=int)
+    hybrid_vectors = np.zeros((15, 15, 5), dtype=int)
     
     # check where there are stones on the field
     # just use the field without the borders (1:-1)
