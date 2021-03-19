@@ -66,7 +66,7 @@ class OurNeuralNetwork(nn.Module):
 class ConvNeuralNetwork(nn.Module):
     def __init__(self, input_size): #15 x 15 x 7 (Walls, Crates, Coins, Bombs, Fire, Players, Enemies)
         super(OurNeuralNetwork, self).__init__()
-        self.conv1 = nn.Conv2d(7, 28, kernel_size=5)
+        self.conv1 = nn.Conv2d(FEATURES_PER_FIELD, 32, kernel_size=2, 1)
         self.conv2 = nn.Conv2d(10, 20, kernel_size=3)
         #self.conv_dropout = nn.Dropout2d()
         input_size = np.int((input_size-5) + 1) #after conv1 =11
@@ -91,15 +91,17 @@ class ConvNeuralNetwork(nn.Module):
 
 class QLearner:
     #Lower alpha means slower but more stable convergence
-    alpha: float = 0.5  
+    alpha: float = 0.8 
     #Learning rate for neural network
     learning_rate: float = 5e-3 #0.1
     #Punishes expectation values in fucture
     gamma: float = 0.9 #0.95 
-    memory_size: int = 5000
-    batch_size: int = 500 #500
-    exploration_decay: float = 0.99 #0.98
-    exploration_max: float = 0.8 #1.0
+    #Maximum site of transitions deque
+    memory_size: int = 2048
+    #Batch size used for training neural network
+    batch_size: int = 128 #500
+    exploration_decay: float = 0.96 #0.98
+    exploration_max: float = 1.0 #1.0
     exploration_min: float = 0.1
     rewards: List[float] = [0]
     is_fit: bool = False
@@ -122,10 +124,9 @@ class QLearner:
         self.logger      = logger
         #Determines exploration vs exploitation
         self.exploration_rate = self.exploration_max
-        self.use_cuda: bool = True #Use GPU to train and play model
+        self.use_cuda: bool = False #Use GPU to train and play model
 
         # Double QNN
-        self.QNN = True #Use a Q-Learning Neural Network (QNN) instead of Gradient Boosting
         self.features_size = ROWS*COLS*FEATURES_PER_FIELD #8
         self.TNN = OurNeuralNetwork(self.features_size) #Target Neural Network (TNN)
         self.PNN = OurNeuralNetwork(self.features_size) #Prediction Neural Network (PNN)
@@ -168,6 +169,7 @@ class QLearner:
             q_values = np.zeros(len(self.actions)).reshape(1, -1)
 
         proposed_action = self.actions[np.argmax(q_values[0])]
+        
         self.logger.debug(f'state_sum= {np.sum(state)} Q-values: {np.round(q_values[0], 4)} -> {proposed_action}')
         self.logger.info(f'Choosing {proposed_action} where {list(zip(self.actions, q_values[0]))}')
 
@@ -182,7 +184,7 @@ class QLearner:
             q_values = q_values.cuda().detach().cpu().clone().numpy()
         else:
             q_values = q_values.detach().numpy()
-        self.PNN.train() #set PNN back in training modey
+        self.PNN.train() #set PNN back in training mode
         return q_values
 
     def prioritized_experience_replay(self): #not prioritized but normal experience replay still
@@ -195,6 +197,39 @@ class QLearner:
         
         #Sample random batch of experiences
         batch = random.sample(self.transitions, self.batch_size)
+        
+        
+            #Sample random batch of experiences
+        batch = random.sample(self.transitions, self.batch_size)
+
+        #Iterate through batch and generate training data
+        for state, action, next_state, reward, game_over in batch:
+            q_update = reward
+                
+            if self.is_fit:
+                if not game_over:
+                    q_update += self.gamma * np.amax(self.model.predict(next_state.reshape(1, -1))[0])
+                #self.logger.debug(f'Model fit before updating Q value.')
+
+                #predict takes n_samples times n_features as argument
+                #therefore we need to reshape
+                q_values  = self.model.predict(state.reshape(1, -1))
+            
+            else:
+                q_values = np.ones(len(self.actions)).reshape(1, -1) * 35
+            
+            action_id = self.action_id[action]
+                
+            #self.logger.debug(f'Choosing action {action} we obtained reward {reward} and Q value = {q_values[0][action_id]} changed to Q = {q_update} after update in given state.')
+
+            q_values[0][action_id] = (1 - self.alpha) * q_values[0][action_id] + self.alpha * q_update
+
+        self.is_fit = True
+        self.exploration_rate *= self.exploration_decay
+        self.exploration_rate = max(self.exploration_min, self.exploration_rate)
+
+
+
         #Run batch on NN
         self.NN_update(batch)
 
@@ -204,32 +239,52 @@ class QLearner:
 
     #Update NN with small batch sampled from transitions
     def NN_update(self, batch):
+
+        # Clear out the gradients of all variables in this optimizer before backpropagation
         self.optimizer.zero_grad()
         batch = np.array(batch, dtype=object)
-        game_overs = batch[:, 4]
-        batch = batch[game_overs==0, :] #exclude transitions which ended in a game_over
-        batch_size = len(batch)
+       
+        #Assemble arrays of initial and final states as well as rewards and actions
         initial_states = np.concatenate(batch[:, 0]).reshape(batch_size, self.features_size)
-        actions = [self.action_id[_] for _ in batch[:, 1]] #actions from 0 to 5
-        new_states = np.concatenate(batch[:, 2]).reshape(batch_size, self.features_size)
-        rewards = np.array(batch[:, 3], dtype=np.float32)
-        
-        new_states = torch.tensor(new_states).float()
-        if self.use_cuda: new_states = new_states.cuda()
-        maxq_actions = torch.amax( self.TNN( new_states ), axis=1 ) #actions with highest Q-value calculated with TNN
-        #print(maxq_actions.shape, maxq_actions.dtype, rewards.shape, rewards.dtype)
-        if self.use_cuda: maxq_actions = maxq_actions.cuda()
-        target_q = torch.Tensor(rewards)
-        if self.use_cuda: target_q = target_q.cuda()
-        target_q += self.gamma * maxq_actions
+        actions        = [self.action_id[_] for _ in batch[:, 1]] #actions from 0 to 5
+        rewards        = np.array(batch[:, 3], dtype=np.float32)
 
+
+        #Form tensor of initial Q values using the predictive NN for prediction
         initial_states = torch.tensor(initial_states).float()
         if self.use_cuda: initial_states = initial_states.cuda()
-        q_values = self.PNN( initial_states )#.detach().numpy() #All Q-values caclulated with PNN at initial states
+        q_values = self.PNN( initial_states ) 
         if self.use_cuda: q_values = q_values.cuda()
-        predict_q = q_values[torch.arange(batch_size), actions] #Q-value of previously chosen action
-        #predict_q = .clone().detach().requires_grad_(True)
+
+        #Q-values of actions chosen in each initial state
+        predict_q = q_values[:, actions] 
         if self.use_cuda: predict_q = predict_q.cuda()
+
+        #Form tensor from rewards to compute targets for Q matrix regression
+        target_q = torch.Tensor(rewards)
+        if self.use_cuda: target_q = target_q.cuda()
+
+        #New state is none, if state is terminal (game_over = True)
+        #Only compute maxq_actions for non-terminal states to update Q function
+        non_terminal    = (batch[:, 4] == False)
+        non_terminal_batch = batch[non_terminal, :] #exclude transitions which ended in a game_over
+        if len(non_terminal_batch) > 0:
+            #Form tensor from new states
+            new_states     = np.concatenate(non_terminal_batch[:, 2]).reshape(len(non_terminal_batch), self.features_size)
+            new_states     = torch.tensor(new_states).float()
+            if self.use_cuda: new_states = new_states.cuda()
+
+            #Use target NN to compute actions with highest Q-value
+            maxq_actions = torch.amax( self.TNN( new_states ), axis=1 ) 
+            #print(maxq_actions.shape, maxq_actions.dtype, rewards.shape, rewards.dtype)
+            if self.use_cuda: maxq_actions = maxq_actions.cuda()
+
+            #Only update Q value with non-terminal states with predicted Q values
+            mask = torch.tensor(non_terminal)
+            target_q[mask, :] += self.gamma * maxq_actions
+            print(maxq_actions.shape, target_q[mask, :].shape)
+
+        
 
         #print('batchsize=', batch_size)
         #print(predict_q.shape, predict_q)
@@ -305,7 +360,7 @@ def setup_training(self):
     """
 
     self.step_counter = 0
-    self.steps_before_replay = 5
+    self.steps_before_replay = 4
     self.num_rounds = 100
 
 def game_events_occurred(self, old_game_state: dict, self_action: str, new_game_state: dict, events: List[str]):
@@ -340,11 +395,12 @@ def game_events_occurred(self, old_game_state: dict, self_action: str, new_game_
 
     reward = reward_from_events(self, events)
 
+    self.qlearner.remember(old_f, self_action, new_f, reward, game_over = False)
+
     #Only replay experiences every fixed number of steps
     self.step_counter += 1
 
     if self.step_counter == self.steps_before_replay:
-
         self.qlearner.prioritized_experience_replay()
         self.step_counter = 0
 
