@@ -29,7 +29,7 @@ test_loader = DataLoader(test_set, batch_size=batch_size, shuffle=True)
 writer = SummaryWriter("runs/" + name)
 
 # load model or initialize new one
-if os.path.isfile(name+".pt"):
+if os.path.isfile("neural_network_pretraining/"+name+".pt"):
     model = torch.load(name+".pt")
     model = model.to(device)
 else:
@@ -39,13 +39,18 @@ else:
 criterion = nn.CrossEntropyLoss()
 optimizer = torch.optim.SGD(model.parameters(), lr=learning_rate)
 
-# initialize metrics
+# init train metrics
 running_loss_train = 0
 running_correct_train = 0
 
 # set other variables
 num_total_steps_train = len(train_loader)
 num_total_steps_test = len(test_loader)
+
+# print general info
+print(f"model runs on {str(device)}")
+print(f"model has {sum(p.numel() for p in model.parameters() if p.requires_grad)} paramters.")
+print()
 
 # learning process
 for epoch in range(num_of_epochs):
@@ -83,12 +88,12 @@ for epoch in range(num_of_epochs):
             writer.add_scalar('training loss', running_loss_train/100, epoch*num_total_steps_train+batch)
             writer.add_scalar('training accuracy', running_correct_train/100, epoch*num_total_steps_train+batch)
 
-            # set matrics back to zero
+            # set train matrics back to zero
             running_loss_train = 0
             running_correct_train = 0
 
 
-    # init metrics for testing
+    # init test metrics for testing
     running_loss_test = 0
     running_correct_test = 0
 
@@ -116,12 +121,12 @@ for epoch in range(num_of_epochs):
 
         # print and tensorboard
         print(f"test: [{epoch+1}/{num_of_epochs}] loss={running_loss_test/num_total_steps_test:.4f}, acc={running_correct_test*100./num_total_steps_test/batch_size}%")
-        writer.add_scalar('training loss', running_loss_train/num_total_steps_test, epoch)
-        writer.add_scalar('training accuracy', running_correct_train/num_total_steps_test/batch_size, epoch)
+        writer.add_scalar('training loss', running_loss_test/num_total_steps_test, epoch)
+        writer.add_scalar('training accuracy', running_correct_test/num_total_steps_test/batch_size, epoch)
 
-        # set matrics back to zero
-        running_loss_train = 0
-        running_correct_train = 0
+        # set test matrics back to zero
+        running_loss_test = 0
+        running_correct_test = 0
 
     # save model
-    torch.save(model, name+".pt")
+    torch.save(model, "neural_network_pretraining/"+name+".pt")
