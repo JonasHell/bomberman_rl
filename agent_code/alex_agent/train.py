@@ -127,11 +127,11 @@ class NeuralNet(nn.Module):
     def __init__(self):
         super(NeuralNet, self).__init__()
 
-        self.conv1 = nn.Conv2d(7, 32, kernel_size = 5, padding = 2)
+        self.conv1 = nn.Conv2d(7, 64, kernel_size = 5, padding = 2)
         self.pool1 = nn.MaxPool2d(2)
         self.drop1 = nn.Dropout(0.1)
 
-        self.conv2 = nn.Conv2d(32, 64, kernel_size=3, padding = 1)
+        self.conv2 = nn.Conv2d(64, 64, kernel_size = 3, padding = 1)
         #self.pool2 = nn.MaxPool2d(2)
         #self.drop2 = nn.Dropout(0.1)
 
@@ -143,17 +143,22 @@ class NeuralNet(nn.Module):
         
     def forward(self, x):
         x = self.relu(self.conv1(x))
+        #print(x.shape)
         x = self.pool1(x)
+        #print(x.shape)
         x = self.drop1(x)
         
         x = self.relu(self.conv2(x))
+        #print(x.shape)
         #x = self.pool2(x)
         #x = self.drop2(x)
         
         x = x.view(x.size(0), -1)
         x = self.relu(self.linear3(x))
+        #print(x.shape)
         #x = self.drop3(x)
         x = self.linear4(x)
+        #print(x.shape)
         return x
   
 class DQN_CNN_2015(nn.Module):
@@ -198,14 +203,14 @@ class QLearner:
     #Lower alpha means slower but more stable convergence
     alpha: float = 0.8 
     #Learning rate for neural network
-    learning_rate: float = 5e-3 #0.1
+    learning_rate: float = 5e-2 #0.1
     #Punishes expectation values in fucture
     gamma: float = 0.95
     #Maximum site of transitions deque
-    memory_size: int = 4096
+    memory_size: int = 4096*2
     #Batch size used for training neural network
-    batch_size: int = 256 #500
-    exploration_decay: float = 0.98 #0.98
+    batch_size: int = 256*2 #500
+    exploration_decay: float = 0.99 #0.98
     exploration_max: float = 1.0 #1.0
     exploration_min: float = 0.1
     rewards: List[float] = [0]
@@ -435,7 +440,9 @@ def setup_training(self):
 
     self.step_counter = 0
     self.steps_before_replay = 4
-    self.num_rounds = 1000
+    self.num_rounds = 100
+    #Create new folder with time step for test run
+    self.directory = create_folder()
 
 def game_events_occurred(self, old_game_state: dict, self_action: str, new_game_state: dict, events: List[str]):
     """
@@ -499,34 +506,35 @@ def end_of_round(self, last_game_state: dict, last_action: str, events: List[str
     self.qlearner.prioritized_experience_replay()
 
 
-    # save the NN-model
-    torch.save(self.qlearner.PNN, MODEL_FILE_NAME)
-    self.logger.info("Model saved to " + MODEL_FILE_NAME)
 
     #If training finishes create folder for run
-    if last_game_state["round"] == self.num_rounds:
-        #Create new folder with time step for test run
-        directory = create_folder()
+    if last_game_state["round"] % self.num_rounds == 0:
+
+        suffix = "_round_"+str(last_game_state["round"])
 
         #Store cumulative rewards
-        np.savetxt(directory + "/rewards.txt", self.qlearner.rewards, fmt='%.3f')
+        np.savetxt(self.directory + "/rewards" + suffix + ".txt", self.qlearner.rewards, fmt='%.3f')
         #Store loss
-        np.savetxt(directory + "/loss.txt", self.qlearner.Loss, fmt='%.3f')
+        np.savetxt(self.directory + "/loss" + suffix + "txt", self.qlearner.Loss, fmt='%.3f')
 
         #Create plot for cumulative rewards
         x = np.arange(len(self.qlearner.rewards))
         plt.plot(x, self.qlearner.rewards)
         plt.title("Cumulative rewards")
-        plt.savefig(directory + "/rewards.png")
+        plt.savefig(self.directory + "/rewards" + suffix + ".png")
         #Create plot for loss
         x2 = np.arange(len(self.qlearner.Loss))
         plt.plot(x2, self.qlearner.Loss)
         plt.title("Loss")
-        plt.savefig(directory + "/loss.png")
+        plt.savefig(self.directory + "/loss" + suffix + ".png")
         
+        # save the NN-model
+        torch.save(self.qlearner.PNN, MODEL_FILE_NAME)
+        self.logger.info("Model saved to " + MODEL_FILE_NAME)
+
         # Store the model in folder with timestamp for reference
-        with open(directory + "/my-saved-model.pt", "wb") as file:
-            pickle.dump(self.qlearner, file)
+        #with open(directory + "/my-saved-model.pt", "wb") as file:
+        #    pickle.dump(self.qlearner, file)
 
 
 def reward_from_events(self, events: List[str]) -> int:
