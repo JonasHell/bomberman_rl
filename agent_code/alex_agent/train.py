@@ -127,18 +127,18 @@ class NeuralNet(nn.Module):
     def __init__(self):
         super(NeuralNet, self).__init__()
 
-        self.conv1 = nn.Conv2d(7, 64, kernel_size = 5, padding = 2)
+        self.conv1 = nn.Conv2d(7, 32, kernel_size = 5, padding = 2)
         self.pool1 = nn.MaxPool2d(2)
         self.drop1 = nn.Dropout(0.1)
 
-        self.conv2 = nn.Conv2d(64, 64, kernel_size = 3, padding = 1)
-        #self.pool2 = nn.MaxPool2d(2)
-        #self.drop2 = nn.Dropout(0.1)
+        self.conv2 = nn.Conv2d(32, 64, kernel_size = 3, padding = 1)
+        self.pool2 = nn.MaxPool2d(2)
+        self.drop2 = nn.Dropout(0.1)
 
-        self.linear3 = nn.Linear(64*8*8, 64)
+        self.linear3 = nn.Linear(64*8*8, 512)
         self.drop3 = nn.Dropout(0.2)
 
-        self.linear4 = nn.Linear(64,6)
+        self.linear4 = nn.Linear(512,6)
         self.relu = nn.ReLU()
         
     def forward(self, x):
@@ -146,7 +146,7 @@ class NeuralNet(nn.Module):
         #print(x.shape)
         x = self.pool1(x)
         #print(x.shape)
-        x = self.drop1(x)
+        #x = self.drop1(x)
         
         x = self.relu(self.conv2(x))
         #print(x.shape)
@@ -172,7 +172,7 @@ class DQN_CNN_2015(nn.Module):
                                         nn.Conv2d(64, 64, kernel_size=2, stride=1),
                                  nn.ReLU(True)
                                         )
-        self.classifier = nn.Sequential(nn.Linear(7*7*64, 512),
+        self.classifier = nn.Sequential(nn.Linear(64*8*8, 512),
                                         nn.ReLU(True),
                                         nn.Linear(512, num_classes)
                                         )
@@ -203,17 +203,18 @@ class QLearner:
     #Lower alpha means slower but more stable convergence
     alpha: float = 0.8 
     #Learning rate for neural network
-    learning_rate: float = 5e-2 #0.1
+    learning_rate: float = 5e-3 #0.1
     #Punishes expectation values in fucture
     gamma: float = 0.95
     #Maximum site of transitions deque
-    memory_size: int = 4096*2
+    memory_size: int = 4096*4
     #Batch size used for training neural network
-    batch_size: int = 256*2 #500
+    batch_size: int = 128 #500
     exploration_decay: float = 0.99 #0.98
     exploration_max: float = 1.0 #1.0
     exploration_min: float = 0.1
     rewards: List[float] = [0]
+    rewards_per_episode: List[float] = [0]
     is_fit: bool = False
     is_training: bool = True
     actions: List[str] = ['UP', 'RIGHT', 'DOWN', 'LEFT', 'WAIT', 'BOMB']
@@ -234,7 +235,7 @@ class QLearner:
         self.logger      = logger
         #Determines exploration vs exploitation
         self.exploration_rate = self.exploration_max
-        self.use_cuda: bool = False #Use GPU to train and play model
+        self.use_cuda: bool = True #Use GPU to train and play model
 
         # Double QNN
         self.features_size = ROWS*COLS*FEATURES_PER_FIELD #8
@@ -243,7 +244,7 @@ class QLearner:
         if self.use_cuda:
             self.TNN = self.TNN.cuda()
             self.PNN = self.PNN.cuda()
-        self.TR: int = 1024 #How often the parameters of the TNN should be replaced with the PNN
+        self.TR: int = 128 #How often the parameters of the TNN should be replaced with the PNN
         self.tr: int = 0 #counter of TR
         # loss weights for DQfD
         self.l1: float = 1
@@ -255,8 +256,8 @@ class QLearner:
         self.TNN.eval()
 
     def remember(self, state : np.array, action : str, next_state : np.array, reward: float , game_over : bool):
-        #Store cumulative reward for performance assessment
-        self.rewards.append(self.rewards[-1] + reward) 
+        #Store rewards for performance assessment
+        self.rewards.append(reward) 
         self.transitions.append([state, action, next_state, reward, game_over])
 
     def propose_action(self, game_state : dict):
@@ -505,6 +506,11 @@ def end_of_round(self, last_game_state: dict, last_action: str, events: List[str
     self.qlearner.remember(last_f, last_action, None, reward, game_over = True)
     self.qlearner.prioritized_experience_replay()
 
+    #Add rewards for current episode
+    self.qlearner.rewards_per_episode.append(np.sum(self.qlearner.rewards))
+    #Clear reward list for next episode
+    self.qlearner.rewards = []
+
 
 
     #If training finishes create folder for run
@@ -513,20 +519,22 @@ def end_of_round(self, last_game_state: dict, last_action: str, events: List[str
         suffix = "_round_"+str(last_game_state["round"])
 
         #Store cumulative rewards
-        np.savetxt(self.directory + "/rewards" + suffix + ".txt", self.qlearner.rewards, fmt='%.3f')
+        np.savetxt(self.directory + "/rewards" + suffix + ".txt", self.qlearner.rewards_per_episode, fmt='%.3f')
         #Store loss
-        np.savetxt(self.directory + "/loss" + suffix + "txt", self.qlearner.Loss, fmt='%.3f')
+        np.savetxt(self.directory + "/loss" + suffix + ",txt", self.qlearner.Loss, fmt='%.3f')
 
         #Create plot for cumulative rewards
-        x = np.arange(len(self.qlearner.rewards))
-        plt.plot(x, self.qlearner.rewards)
-        plt.title("Cumulative rewards")
+        x = np.arange(len(self.qlearner.rewards_per_episode))
+        plt.plot(x, self.qlearner.rewards_per_episode)
+        plt.title("Cumulative rewards per episode")
         plt.savefig(self.directory + "/rewards" + suffix + ".png")
+        plt.clf()
         #Create plot for loss
         x2 = np.arange(len(self.qlearner.Loss))
         plt.plot(x2, self.qlearner.Loss)
         plt.title("Loss")
         plt.savefig(self.directory + "/loss" + suffix + ".png")
+        plt.clf()
         
         # save the NN-model
         torch.save(self.qlearner.PNN, MODEL_FILE_NAME)
