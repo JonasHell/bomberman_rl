@@ -93,28 +93,10 @@ class ConvNeuralNetwork(nn.Module):
         return out
 
 
-class Network(nn.Module):
-    def __init__(self, input_size):
-        super().__init__()
-        
-        # Inputs to hidden layer linear transformation
-        self.hidden = nn.Linear(input_size, 256)
-        # Output layer, 10 units - one for each digit
-        self.output = nn.Linear(256, 6)
-        
-        # Define sigmoid activation and softmax output 
-        self.sigmoid = nn.Sigmoid()
-        self.softmax = nn.Softmax(dim=1)
-        
-    def forward(self, x):
-        # Pass the input tensor through each of our operations
-        x = self.hidden(x)
-        x = self.sigmoid(x)
-        x = self.output(x)
-        x = self.softmax(x)
-        
-        return x
 
+
+#Converges for 7x7 network
+"""
 class NeuralNet(nn.Module):
     def __init__(self):
         super(NeuralNet, self).__init__()
@@ -139,7 +121,40 @@ class NeuralNet(nn.Module):
         x = self.out(x) # [batch_size, 10]
         print("Sixth step: ",x.shape)
         return x
+"""
+class NeuralNet(nn.Module):
+  
+    def __init__(self):
+        super(NeuralNet, self).__init__()
 
+        self.conv1 = nn.Conv2d(7, 32, kernel_size = 5, padding = 2)
+        self.pool1 = nn.MaxPool2d(2)
+        self.drop1 = nn.Dropout(0.1)
+
+        self.conv2 = nn.Conv2d(32, 64, kernel_size=3, padding = 1)
+        #self.pool2 = nn.MaxPool2d(2)
+        #self.drop2 = nn.Dropout(0.1)
+
+        self.linear3 = nn.Linear(64*8*8, 64)
+        self.drop3 = nn.Dropout(0.2)
+
+        self.linear4 = nn.Linear(64,6)
+        self.relu = nn.ReLU()
+        
+    def forward(self, x):
+        x = self.relu(self.conv1(x))
+        x = self.pool1(x)
+        x = self.drop1(x)
+        
+        x = self.relu(self.conv2(x))
+        #x = self.pool2(x)
+        #x = self.drop2(x)
+        
+        x = x.view(x.size(0), -1)
+        x = self.relu(self.linear3(x))
+        #x = self.drop3(x)
+        x = self.linear4(x)
+        return x
   
 class DQN_CNN_2015(nn.Module):
     def __init__(self, num_classes=6, init_weights=True):
@@ -185,12 +200,12 @@ class QLearner:
     #Learning rate for neural network
     learning_rate: float = 5e-3 #0.1
     #Punishes expectation values in fucture
-    gamma: float = 0.9 #0.95 
+    gamma: float = 0.95
     #Maximum site of transitions deque
-    memory_size: int = 2048
+    memory_size: int = 4096
     #Batch size used for training neural network
-    batch_size: int = 128 #500
-    exploration_decay: float = 0.96 #0.98
+    batch_size: int = 256 #500
+    exploration_decay: float = 0.98 #0.98
     exploration_max: float = 1.0 #1.0
     exploration_min: float = 0.1
     rewards: List[float] = [0]
@@ -223,7 +238,7 @@ class QLearner:
         if self.use_cuda:
             self.TNN = self.TNN.cuda()
             self.PNN = self.PNN.cuda()
-        self.TR: int = 10 #How often the parameters of the TNN should be replaced with the PNN
+        self.TR: int = 1024 #How often the parameters of the TNN should be replaced with the PNN
         self.tr: int = 0 #counter of TR
         # loss weights for DQfD
         self.l1: float = 1
@@ -527,9 +542,10 @@ def reward_from_events(self, events: List[str]) -> int:
         e.MOVED_LEFT: -0.05,
         e.MOVED_UP: -0.05,
         e.MOVED_RIGHT: -0.05,
+        e.BOMB_DROPPED: -0.05,
+        e.CRATE_DESTROYED: 1,
         e.WAITED: -0.1,
         e.INVALID_ACTION: -0.1,
-        e.BOMB_DROPPED: -30,
         e.KILLED_SELF: -20, 
     }
     reward_sum = 0
