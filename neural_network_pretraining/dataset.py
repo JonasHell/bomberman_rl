@@ -26,8 +26,8 @@ class BomberManDataSet(Dataset):
         
         # divide data in features and label (=last column)
         # and convert to torch tensors
-        self.x = torch.tensor(features[0:4], dtype=torch.float)
-        self.y = torch.tensor(labels[0:4], dtype=torch.int).long()
+        self.x = torch.tensor(features[0:10], dtype=torch.float)
+        self.y = torch.tensor(labels[0:10], dtype=torch.int).long()
         #self.x = torch.tensor(data[:, :-1], dtype=torch.float)
         #self.y = torch.tensor(data[:, -1], dtype=torch.int).long()
         
