@@ -258,7 +258,9 @@ class QLearner:
         self.TNN.load_state_dict(self.PNN.state_dict())
         self.TNN.eval()
         self.criterion = nn.MSELoss()
-        self.epoch = 0
+
+        # writer for tensorboard
+        self.writer = SummaryWriter()
 
 
     def remember(self, state : np.array, action : str, next_state : np.array, reward: float , game_over : bool):
@@ -375,7 +377,6 @@ class QLearner:
         else:
             loss = L.detach().numpy()
 
-        self.epoch += 1
         self.writer.add_scalar("Loss/train", loss, self.epoch)
 
         self.Loss.append(loss)
@@ -447,8 +448,7 @@ def setup_training(self):
     self.num_rounds = 100
     #Create new folder with time step for test run
     self.directory = create_folder()
-    # writer for tensorboard
-    self.writer = SummaryWriter(directory)
+    self.epoch = 0
 
 def game_events_occurred(self, old_game_state: dict, self_action: str, new_game_state: dict, events: List[str]):
     """
@@ -486,6 +486,7 @@ def game_events_occurred(self, old_game_state: dict, self_action: str, new_game_
 
     #Only replay experiences every fixed number of steps
     self.step_counter += 1
+    self.epoch += 1
 
     if self.step_counter == self.steps_before_replay:
         self.qlearner.prioritized_experience_replay()
@@ -509,6 +510,7 @@ def end_of_round(self, last_game_state: dict, last_action: str, events: List[str
     reward = reward_from_events(self, events)
 
     self.qlearner.remember(last_f, last_action, None, reward, game_over = True)
+    self.epoch += 1
     self.qlearner.prioritized_experience_replay()
 
     #Add rewards for current episode
