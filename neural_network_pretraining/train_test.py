@@ -15,9 +15,9 @@ from neural_network import OurNeuralNetwork_conv
 #input_size = 1137
 num_of_epochs = 100
 batch_size = 32
-learning_rate = 0.01
+learning_rate = 0.001
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-name = "15x15_conv_ep"+str(num_of_epochs)+"_bs"+str(batch_size)+"_lr"+str(learning_rate)
+name = "15x15_conv_ep"+str(num_of_epochs)+"_bs"+str(batch_size)+"_lr"+str(learning_rate)+"_adam"
 
 # data sets and data loaders
 train_set = BomberManDataSet("neural_network_pretraining/train_data/", "coin")
@@ -38,7 +38,7 @@ else:
 
 # define criterion and optimizer
 criterion = nn.CrossEntropyLoss()
-optimizer = torch.optim.SGD(model.parameters(), lr=learning_rate)
+optimizer = torch.optim.adam(model.parameters(), lr=learning_rate)
 
 # init train metrics
 running_loss_train = 0
