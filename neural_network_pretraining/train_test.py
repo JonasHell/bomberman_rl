@@ -38,7 +38,7 @@ else:
 
 # define criterion and optimizer
 criterion = nn.CrossEntropyLoss()
-optimizer = torch.optim.adam(model.parameters(), lr=learning_rate)
+optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
 
 # init train metrics
 running_loss_train = 0
