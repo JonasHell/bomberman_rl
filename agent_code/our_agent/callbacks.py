@@ -1,4 +1,5 @@
 import os
+import sys
 import pickle
 import random
 
@@ -17,8 +18,8 @@ from agent_code.our_agent.modified_rule_based_agent import Modified_Rule_Based_A
 
 ACTIONS = ['UP', 'RIGHT', 'DOWN', 'LEFT', 'WAIT', 'BOMB']
 #MODEL_FILE_NAME = "our-saved-model.pt"
-MODEL_FILE_NAME = "layer3_batch4_lr001_wd0005_sgd.pt"
-SIZE_OF_INPUT = 257
+MODEL_FILE_NAME = "../../neural_network_pretraining/15x15_ep100_bs32_lr0.01_statedict.pt"
+SIZE_OF_INPUT = 1137
 RANDOM_PROB = 0.0
 
 
@@ -40,8 +41,11 @@ def setup(self):
     self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
     # check if sved version is available, otherwise initialize new model
-    if False:#os.path. isfile(MODEL_FILE_NAME):
-        self.model = torch.load(MODEL_FILE_NAME, map_location=self.device)
+    if os.path.isfile(MODEL_FILE_NAME):
+        #self.model = torch.load(MODEL_FILE_NAME, map_location=self.device)
+        self.model = OurNeuralNetwork(SIZE_OF_INPUT)
+        state_dict = torch.load(MODEL_FILE_NAME)
+        self.model.load_state_dict(state_dict)
         self.logger.info("Loaded saved model.")
         print("Loaded saved Model.")
     else:
@@ -185,9 +189,9 @@ def state_to_features(game_state: dict) -> np.array:
 class OurNeuralNetwork(nn.Module):
     def __init__(self, input_size):
         super(OurNeuralNetwork, self).__init__()
-        self.linear1 = nn.Linear(input_size, 64) # input_size 257
-        self.linear2 = nn.Linear(64, 16)
-        self.linear3 = nn.Linear(16, 6)
+        self.linear1 = nn.Linear(input_size, 256) # input_size 1137
+        self.linear2 = nn.Linear(256, 64)
+        self.linear3 = nn.Linear(64, 6)
 
     def forward(self, x):
         out = self.linear1(x)
@@ -241,3 +245,6 @@ class OurNeuralNetwork(nn.Module):
         # out = F.softmax nicht nötig, weil CrossEntropy das auch anwendet
         return out
     '''
+
+def save_data(self):
+    pass
