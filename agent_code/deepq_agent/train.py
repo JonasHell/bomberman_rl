@@ -524,7 +524,7 @@ def end_of_round(self, last_game_state: dict, last_action: str, events: List[str
     if last_game_state["round"] % self.num_rounds == 0:
 
         #Store tensorboard log
-        self.writer.flush()
+        self.qlearner.writer.flush()
 
         suffix = "_round_"+str(last_game_state["round"])
 
