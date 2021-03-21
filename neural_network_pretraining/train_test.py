@@ -130,7 +130,7 @@ for epoch in range(num_of_epochs):
         running_correct_test = 0
 
     # save model
-    torch.save(model, "neural_network_pretraining/"+name+".pt")
+    torch.save(model.state_dict(), "neural_network_pretraining/"+name+"_state_dict.pt")
 
 # flush and close writer
 writer.flush()

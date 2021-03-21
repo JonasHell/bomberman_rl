@@ -19,7 +19,10 @@ from agent_code.our_agent.modified_rule_based_agent import Modified_Rule_Based_A
 ACTIONS = ['UP', 'RIGHT', 'DOWN', 'LEFT', 'WAIT', 'BOMB']
 #MODEL_FILE_NAME = "our-saved-model.pt"
 MODEL_FILE_NAME = "../../neural_network_pretraining/15x15_ep100_bs32_lr0.01_statedict.pt"
-SIZE_OF_INPUT = 1137
+ROWS = 17
+COLS = 17
+FEATURES_PER_FIELD = 7
+SIZE_OF_INPUT = ROWS * COLS * FEATURES_PER_FIELD
 RANDOM_PROB = 0.0
 
 
@@ -86,8 +89,88 @@ def act(self, game_state: dict) -> str:
     self.logger.debug("Querring model for best action.")
     return ACTIONS[torch.argmax(out)]
 
+# conv one
+def state_to_features_hybrid_vec(game_state: dict) -> np.array:
+    """
+    *This is not a required function, but an idea to structure your code.*
+    Converts the game state to the input of your model, i.e.
+    a feature vector.
+    You can find out about the state of the game environment via game_state,
+    which is a dictionary. Consult 'get_state_for_agent' in environment.py to see
+    what it contains.
+    :param game_state:  A dictionary describing the current game board.
+    :return: np.array
+    """
+    # This is the dict before the game begins and after it ends
+    if game_state is None:
+        return None
+    
+    # We want to represent the state as vector.
+    # For each cell on the field we define a vector with 8 entries, each either 0 or 1
+    # [0, 0, 0, 0, 0, 0, 0] --> free
+    # [1, 0, 0, 0, 0, 0, 0] --> stone
+    # [0, 1, 0, 0, 0, 0, 0] --> crate
+    # [0, 0, 1, 0, 0, 0, 0] --> coin
+    # [0, 0, 0, 5, 0, 0, 0] --> bomb, number shows bomb countdown
+    # [0, 0, 0, 0, 1, 0, 0] --> fire
+    # [0, 0, 0, 0, 0, 1, 0] --> enemy
+    # [0, 0, 0, 0, 0, 0, 1] --> player
+    # in principle with this encoding multiple cases could happen at the same time
+    # e.g. [0, 0, 0, 1, 1] --> bomb and fire
+    # but in our implementation of the game this is not relevant
+    # because they are a combination of one-hot and binary map
+    # they are called hybrid vectors
 
-def state_to_features(game_state: dict) -> np.array:
+    # initialize empty field
+    hybrid_vectors = np.zeros((FEATURES_PER_FIELD, COLS, ROWS), dtype=int)
+    
+    # check where there are stones on the field)
+    # set the first entry in the vector to 1
+    hybrid_vectors[0, game_state['field'] == -1] = 1
+
+    # check where there are crates
+    # set the second entry in the vector to 1
+    hybrid_vectors[1, game_state['field'] ==  1] = 1
+
+    # check where free coins are
+    # set the third entry in the vector to 1
+    # user np.moveaxis to transform list of tuples in numpy array
+    # https://stackoverflow.com/questions/42537956/slice-numpy-array-using-list-of-coordinates
+    if len(game_state['coins']) > 0:
+        coin_coords = np.moveaxis(np.array(game_state['coins']), -1, 0)
+        hybrid_vectors[2, coin_coords[0], coin_coords[1]] = 1
+    
+    # check where bombs are
+    # set the fourth entry in the vector to 1
+    # discard the time since this can be learned by the model because we
+    # use a LSTM network
+    if len(game_state['bombs']) > 0:
+        bomb_coords = np.array([[bomb[0][0], bomb[0][1], bomb[1]] for bomb in game_state['bombs']]).T
+        hybrid_vectors[3, bomb_coords[0], bomb_coords[1]] = bomb_coords[2]
+
+    # check where fire is
+    # set the fifth entry in the vector to 1
+    hybrid_vectors[4, :, :] = game_state['explosion_map']
+
+    # add enemy coords and their bomb boolean as additional entries at the end
+    # non-existing enemies have -1 at each position as default
+    for i in range(len(game_state['others'])):
+        enemy = game_state['others'][i]
+         #Value is 1 if enemy cannot place bomb and 2 if otherwise
+        hybrid_vectors[5, enemy[3][0],enemy[3][1]] = 1 + int(enemy[2])
+    
+    # add player coordinates
+    hybrid_vectors[6, game_state['self'][3][0], game_state['self'][3][1]] = 1 + int(game_state['self'][2])
+
+    return hybrid_vectors
+
+
+#conv one
+
+
+
+# flat one
+def state_to_features_flat(game_state: dict) -> np.array:
     """
     *This is not a required function, but an idea to structure your code.*
 
@@ -183,12 +266,13 @@ def state_to_features(game_state: dict) -> np.array:
     return hyb_vec # len(hyb_vec) = (15 x 15 x 5) + (4 x 3) = 1137
 
 
+# flat one
 # wieviele layer? wie groß? sprünge in layer größe okay oder sogar gut?
 # wie baut man lstm layer ein? reicht eins?
 # tensorboard einbauen
-class OurNeuralNetwork(nn.Module):
+class OurNeuralNetwork_old(nn.Module):
     def __init__(self, input_size):
-        super(OurNeuralNetwork, self).__init__()
+        super(OurNeuralNetwork_old, self).__init__()
         self.linear1 = nn.Linear(input_size, 256) # input_size 1137
         self.linear2 = nn.Linear(256, 64)
         self.linear3 = nn.Linear(64, 6)
@@ -246,5 +330,8 @@ class OurNeuralNetwork(nn.Module):
         return out
     '''
 
+
+# just needed because I implemented this in the Api to generate 
+# train/test data from the rule_based_agent
 def save_data(self):
     pass

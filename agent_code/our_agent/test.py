@@ -79,7 +79,7 @@ print(ACTIONS[[0, 1, 0, 5]])
 x = torch.tensor([0., 1., 2., 3., 4., 5.])
 print(F.softmax(x, dim=0))
 print(F.log_softmax(x, dim=0))
-'''
+
 x = [np.array([1, 2, 3]),
      np.array([4, 5, 6]),
      np.array([7, 8, 9]),
@@ -105,7 +105,7 @@ print(np.concatenate([y for _ in range(3)]))
 print(x)
 print(np.array(x))
 print(np.array(x, dtype=np.float32))
-'''
+
 #load = np.genfromtxt('foo', delimiter=',')
 load_comp = np.load("foo.npz")
 load = load_comp['data']
@@ -115,3 +115,15 @@ yn = load[:, -1]
 print(xn)
 print(yn)
 '''
+
+print(os.getcwd())
+load = np.load("neural_network_pretraining/test_data/coins_.npz")
+x = load['features']
+y = load['labels']
+print(y.shape)
+print(y)
+
+print(x)
+print(x.shape)
+
+print(len(np.concatenate((x, x), axis=0)))

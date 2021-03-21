@@ -2,7 +2,7 @@ from collections import deque
 from random import shuffle
 
 import numpy as np
-from agent_code.our_agent.callbacks import state_to_features
+from agent_code.our_agent.callbacks import state_to_features_hybrid_vec
 
 import os
 
@@ -217,7 +217,7 @@ def act(self, game_state):
                 self.bomb_history.append((x, y))
 
             # modified
-            self.states.append(state_to_features(game_state))
+            self.states.append(state_to_features_hybrid_vec(game_state))
             self.preds.append(ACTIONS.index(a))
             return a
 
@@ -226,7 +226,7 @@ def save_data(self):
     #x = self.states
     #y = self.preds
     #np.savetxt("../../neural_network_pretraining/test_data/coins_" + self.num + ".csv", np.concatenate((x, y), axis=1), delimiter=",")
-    np.savez_compressed("../../neural_network_pretraining/train_data/coins_" + self.num,
+    np.savez_compressed("../../neural_network_pretraining/test_data/coins_" + self.num,
                         features=np.array(self.states, dtype=np.int16),
                         labels=np.array(self.preds, dtype=np.int16))
     print("saved")
