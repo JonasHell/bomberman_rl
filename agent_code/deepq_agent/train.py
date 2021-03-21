@@ -14,6 +14,9 @@ from torch.autograd import Variable
 import torch.nn as nn
 import torch.nn.functional as F
 import torchvision
+
+from torch.utils.tensorboard import SummaryWriter
+
 import scipy
 
 #File name for neural network
@@ -201,7 +204,7 @@ class DQN_CNN_2015(nn.Module):
 
 class QLearner:
     #Lower alpha means slower but more stable convergence
-    alpha: float = 0.8 
+    alpha: float = 0.8
     #Learning rate for neural network
     learning_rate: float = 5e-3 #0.1
     #Punishes expectation values in fucture
@@ -254,6 +257,9 @@ class QLearner:
         #Set TNN-paramters as PNN at start
         self.TNN.load_state_dict(self.PNN.state_dict())
         self.TNN.eval()
+        self.criterion = nn.MSELoss()
+        self.epoch = 0
+
 
     def remember(self, state : np.array, action : str, next_state : np.array, reward: float , game_over : bool):
         #Store rewards for performance assessment
@@ -339,8 +345,6 @@ class QLearner:
         predict_q = q_values[np.arange(self.batch_size), actions] 
         if self.use_cuda: predict_q = predict_q.cuda()
 
-        
-
         #Form tensor from rewards to compute targets for Q matrix regression
         target_q = torch.Tensor(rewards)
         if self.use_cuda: target_q = target_q.cuda()
@@ -365,16 +369,15 @@ class QLearner:
             target_q[mask] += self.gamma * maxq_actions
 
         
-
-        #print('batchsize=', batch_size)
-        #print(predict_q.shape, predict_q)
-        #print(target_q.shape, target_q)
-        criterion = nn.MSELoss()
-        L = criterion(predict_q, target_q) #Total Loss
+        L = self.criterion(predict_q, target_q) #Total Loss
         if self.use_cuda:
             loss = L.cuda().detach().cpu().clone().numpy()
         else:
             loss = L.detach().numpy()
+
+        self.epoch += 1
+        self.writer.add_scalar("Loss/train", loss, self.epoch)
+
         self.Loss.append(loss)
         L.backward()
         self.optimizer.step() # backpropagation of PNN
@@ -444,6 +447,8 @@ def setup_training(self):
     self.num_rounds = 100
     #Create new folder with time step for test run
     self.directory = create_folder()
+    # writer for tensorboard
+    self.writer = SummaryWriter(directory)
 
 def game_events_occurred(self, old_game_state: dict, self_action: str, new_game_state: dict, events: List[str]):
     """
@@ -515,6 +520,9 @@ def end_of_round(self, last_game_state: dict, last_action: str, events: List[str
 
     #If training finishes create folder for run
     if last_game_state["round"] % self.num_rounds == 0:
+
+        #Store tensorboard log
+        self.writer.flush()
 
         suffix = "_round_"+str(last_game_state["round"])
 
