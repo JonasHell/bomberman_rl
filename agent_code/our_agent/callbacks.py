@@ -165,10 +165,6 @@ def state_to_features_hybrid_vec(game_state: dict) -> np.array:
     return hybrid_vectors
 
 
-#conv one
-
-
-
 # flat one
 def state_to_features_flat(game_state: dict) -> np.array:
     """

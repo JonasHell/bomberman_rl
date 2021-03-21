@@ -117,13 +117,8 @@ print(yn)
 '''
 
 print(os.getcwd())
-load = np.load("neural_network_pretraining/test_data/coins_.npz")
+load = np.load("neural_network_pretraining/train_data/coins_.npz")
 x = load['features']
 y = load['labels']
 print(y.shape)
-print(y)
-
-print(x)
 print(x.shape)
-
-print(len(np.concatenate((x, x), axis=0)))

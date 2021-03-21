@@ -8,16 +8,16 @@ from torch.utils.data import DataLoader
 from torch.utils.tensorboard import SummaryWriter
 
 from dataset import BomberManDataSet
-from neural_network import OurNeuralNetwork
+from neural_network import OurNeuralNetwork_conv
 
 
 # hyperparameters
-input_size = 1137
+#input_size = 1137
 num_of_epochs = 100
 batch_size = 32
 learning_rate = 0.01
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-name = "15x15_ep"+str(num_of_epochs)+"_bs"+str(batch_size)+"_lr"+str(learning_rate)
+name = "15x15_conv_ep"+str(num_of_epochs)+"_bs"+str(batch_size)+"_lr"+str(learning_rate)
 
 # data sets and data loaders
 train_set = BomberManDataSet("neural_network_pretraining/train_data/", "coin")
@@ -34,7 +34,7 @@ if os.path.isfile("neural_network_pretraining/"+name+".pt"):
     model = torch.load("neural_network_pretraining/"+name+".pt")
     model = model.to(device)
 else:
-    model = OurNeuralNetwork(input_size).to(device)
+    model = OurNeuralNetwork_conv().to(device)
 
 # define criterion and optimizer
 criterion = nn.CrossEntropyLoss()
@@ -85,7 +85,7 @@ for epoch in range(num_of_epochs):
 
         # print and tensorboard output
         if (batch+1) % 100 == 0:
-            print(f"[{epoch+1}/{num_of_epochs}] [{batch+1}/{num_total_steps_train}] loss={loss.item():.4f}, acc={correct*100./batch_size}%")
+            print(f"[{epoch+1}/{num_of_epochs}] [{batch+1}/{num_total_steps_train}] loss={loss.item():.4f}, acc={correct*100./batch_size:.2f}%")
             writer.add_scalar('train loss', running_loss_train/100, epoch*num_total_steps_train+batch)
             writer.add_scalar('train accuracy', running_correct_train/100, epoch*num_total_steps_train+batch)
 
