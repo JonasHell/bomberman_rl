@@ -43,60 +43,6 @@ ROWS = 17
 COLS = 17
 FEATURES_PER_FIELD = 7
 
-class OurNeuralNetwork(nn.Module):
-    def __init__(self, input_size):
-        super(OurNeuralNetwork, self).__init__()
-        self.linear1 = nn.Linear(input_size, 2048)
-        self.linear2 = nn.Linear(2048, 512)
-        self.linear3 = nn.Linear(512, 128)
-        self.linear4 = nn.Linear(128, 32)
-        self.linear5 = nn.Linear(32, 6)
-
-    def forward(self, x):
-        # könnte auch andere activation function nehmen
-        out = self.linear1(x)
-        out = F.selu(out)
-        out = self.linear2(out)
-        out = F.selu(out)
-        out = self.linear3(out)
-        out = F.selu(out)
-        out = self.linear4(out)
-        out = F.selu(out)
-        out = self.linear5(out)
-        return out
-
-class ConvNeuralNetwork(nn.Module):
-    def init(self): #17 x 17 x 7 (Walls, Crates, Coins, Bombs, Fire, Players, Enemies)
-        super(OurNeuralNetwork, self).init()
-        self.conv1 = nn.Conv2d(7, 28, kernel_size=3)
-        self.conv2 = nn.Conv2d(10, 20, kernel_size=3)
-        self.linear1 = nn.Linear(20, 40)
-        self.linear2 = nn.Linear(40, 6)
-
-    def forward(self, x):
-        # könnte auch andere activation function nehmen
-        out = self.conv1(x)
-        print(out.shape)
-        out = F.max_pool2d(out, kernel_size=2, stride=2)
-        print(out.shape)
-        out = F.selu(out)
-        print(out.shape)
-        out = self.conv2(out)
-        print(out.shape)
-        out = F.selu(out)
-        print(out.shape)
-        out = out.view(-1, 320)
-        print(out.shape)
-        out = self.linear1(out)
-        print(out.shape)
-        out = F.selu(out)
-        print(out.shape)
-        out = self.linear2(out)
-        print(out.shape)
-        return out
-
-
-
 
 #Converges for 7x7 network
 """
@@ -143,11 +89,11 @@ class NeuralNet(nn.Module):
         self.pool2 = nn.MaxPool2d(2)
         self.drop2 = nn.Dropout(0.1)
 
-        self.linear3 = nn.Linear(64*4*4, 128)
+        self.linear3 = nn.Linear(64*4*4, 64)
         torch.nn.init.kaiming_uniform_(self.linear3.weight, mode='fan_in', nonlinearity='relu')
         self.drop3 = nn.Dropout(0.1)
 
-        self.linear4 = nn.Linear(128,6)
+        self.linear4 = nn.Linear(64,6)
         torch.nn.init.kaiming_uniform_(self.linear4.weight, mode='fan_in', nonlinearity='relu')
         self.relu = nn.ReLU()
         
@@ -169,45 +115,6 @@ class NeuralNet(nn.Module):
         #print(x.shape)
         return x
   
-  
-class DQN_CNN_2015(nn.Module):
-    def __init__(self, num_classes=6, init_weights=True):
-        super().__init__()
-
-        self.cnn = nn.Sequential(nn.Conv2d(4, 32, kernel_size=2, stride=1),
-                                        nn.ReLU(True),
-                                        nn.Conv2d(32, 64, kernel_size=2, stride=1),
-                                        nn.ReLU(True),
-                                        nn.Conv2d(64, 64, kernel_size=2, stride=1),
-                                 nn.ReLU(True)
-                                        )
-        self.classifier = nn.Sequential(nn.Linear(64*8*8, 512),
-                                        nn.ReLU(True),
-                                        nn.Linear(512, num_classes)
-                                        )
-        if init_weights:
-            self._initialize_weights()
-
-    def forward(self, x):
-        x = self.cnn(x)
-        x = torch.flatten(x, start_dim=1)
-        x = self.classifier(x)
-        return x
-
-    def _initialize_weights(self):
-        for m in self.modules():
-            if isinstance(m, nn.Conv2d):
-                nn.init.kaiming_normal_(m.weight, mode='fan_out', nonlinearity='relu')
-                if m.bias is not None:
-                    nn.init.constant_(m.bias, 0.0)
-            elif isinstance(m, nn.BatchNorm2d):
-                nn.init.constant_(m.weight, 1.0)
-                nn.init.constant_(m.bias, 0.0)
-            elif isinstance(m, nn.Linear):
-                nn.init.kaiming_normal_(m.weight, mode='fan_out', nonlinearity='relu')
-                nn.init.constant_(m.bias, 0.0)
-
-
 class QLearner:
     #Learning rate for neural network
     learning_rate: float = 0.0005 #0.1
@@ -545,9 +452,9 @@ def end_of_round(self, last_game_state: dict, last_action: str, events: List[str
         torch.save(self.qlearner.PNN, MODEL_FILE_NAME)
         self.logger.info("Model saved to " + MODEL_FILE_NAME)
 
-        # Store the model in folder with timestamp for reference
-        #with open(directory + "/my-saved-model.pt", "wb") as file:
-        #    pickle.dump(self.qlearner, file)
+        #Store the training memory
+        with open("transitions.pt", "wb") as file:
+            pickle.dump(self.qlearner.transitions, file)
 
 
 def reward_from_events(self, events: List[str]) -> int:
