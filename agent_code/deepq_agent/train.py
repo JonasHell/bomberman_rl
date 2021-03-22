@@ -131,19 +131,18 @@ class NeuralNet(nn.Module):
     def __init__(self):
         super(NeuralNet, self).__init__()
 
-        self.conv1 = nn.Conv2d(7, 64, kernel_size = 3, padding = 1)
+        self.conv1 = nn.Conv2d(7, 16, kernel_size = 3, padding = 1)
         torch.nn.init.kaiming_uniform_(self.conv1.weight, mode='fan_in', nonlinearity='relu')
 
         self.pool1 = nn.MaxPool2d(2)
-        self.drop1 = nn.Dropout(0.1)
+        self.drop1 = nn.Dropout(0.2)
 
-        self.conv2 = nn.Conv2d(64, 128, kernel_size = 3, padding = 1)
+        self.conv2 = nn.Conv2d(16, 32, kernel_size = 3, padding = 1)
         torch.nn.init.kaiming_uniform_(self.conv2.weight, mode='fan_in', nonlinearity='relu')
-        self.drop2 = nn.Dropout(0.1)
 
-        self.linear3 = nn.Linear(128*3*3, 64)
+        self.linear3 = nn.Linear(32*3*3, 64)
         torch.nn.init.kaiming_uniform_(self.linear3.weight, mode='fan_in', nonlinearity='relu')
-        self.drop3 = nn.Dropout(0.1)
+        self.drop3 = nn.Dropout(0.2)
 
         self.linear4 = nn.Linear(64,6)
         torch.nn.init.kaiming_uniform_(self.linear4.weight, mode='fan_in', nonlinearity='relu')
@@ -159,12 +158,12 @@ class NeuralNet(nn.Module):
         x = self.relu(self.conv2(x))
         #print(x.shape)
         #x = self.pool2(x)
-        x = self.drop2(x)
+        #x = self.drop2(x)
         
         x = x.view(x.size(0), -1)
         x = self.relu(self.linear3(x))
         #print(x.shape)
-        x = self.drop3(x)
+        #x = self.drop3(x)
         x = self.linear4(x)
         #print(x.shape)
         return x
@@ -212,7 +211,7 @@ class QLearner:
     #Learning rate for neural network
     learning_rate: float = 0.0005 #0.1
     #Punishes expectation values in future
-    gamma: float = 0.95
+    gamma: float = 0.9
     #Maximum size of transitions deque
     memory_size: int = 4096*4
     #Batch size used for training neural network
@@ -264,7 +263,7 @@ class QLearner:
         self.l3: float = 1e-5
 
         # Set learning rate and regularisation
-        self.optimizer = optim.Adam(self.PNN.parameters(), lr=self.learning_rate)#, weight_decay=self.l3) #Add L2 regularization for Adam optimized
+        self.optimizer = optim.Adam(self.PNN.parameters(), lr=self.learning_rate, weight_decay=self.l3) #Add L2 regularization for Adam optimized
         
         #Set TNN-paramters as PNN at start
         self.TNN.load_state_dict(self.PNN.state_dict())
@@ -434,7 +433,7 @@ def setup_training(self):
     """
 
     self.step_counter = 0
-    self.steps_before_replay = 4
+    self.steps_before_replay = 8
     self.num_rounds = 100
     #Create new folder with time step for test run
     self.directory = create_folder()
@@ -481,7 +480,7 @@ def game_events_occurred(self, old_game_state: dict, self_action: str, new_game_
         self.qlearner.prioritized_experience_replay()
         self.step_counter = 0
 
-def movingaverage(interval, window_size = 15):
+def movingaverage(interval, window_size = 10):
     window = np.ones(int(window_size))/float(window_size)
     return np.convolve(interval, window, 'same')
 
