@@ -125,42 +125,50 @@ class NeuralNet(nn.Module):
         #print("Sixth step: ",x.shape)
         return x
 """
+
 class NeuralNet(nn.Module):
   
     def __init__(self):
         super(NeuralNet, self).__init__()
 
-        self.conv1 = nn.Conv2d(7, 32, kernel_size = 5, padding = 2)
+        self.conv1 = nn.Conv2d(7, 64, kernel_size = 3, padding = 1)
+        torch.nn.init.kaiming_uniform_(self.conv1.weight, mode='fan_in', nonlinearity='relu')
+
         self.pool1 = nn.MaxPool2d(2)
         self.drop1 = nn.Dropout(0.1)
 
-        self.conv2 = nn.Conv2d(32, 64, kernel_size = 3, padding = 1)
+        self.conv2 = nn.Conv2d(64, 128, kernel_size = 3, padding = 1)
+        torch.nn.init.kaiming_uniform_(self.conv2.weight, mode='fan_in', nonlinearity='relu')
+        self.drop2 = nn.Dropout(0.1)
 
-        self.linear3 = nn.Linear(64*8*8, 64)
-        self.drop3 = nn.Dropout(0.2)
+        self.linear3 = nn.Linear(128*3*3, 64)
+        torch.nn.init.kaiming_uniform_(self.linear3.weight, mode='fan_in', nonlinearity='relu')
+        self.drop3 = nn.Dropout(0.1)
 
         self.linear4 = nn.Linear(64,6)
+        torch.nn.init.kaiming_uniform_(self.linear4.weight, mode='fan_in', nonlinearity='relu')
         self.relu = nn.ReLU()
         
     def forward(self, x):
         x = self.relu(self.conv1(x))
         #print(x.shape)
+        ##print(x.shape)
         x = self.pool1(x)
-        #print(x.shape)
-        #x = self.drop1(x)
+        x = self.drop1(x)
         
         x = self.relu(self.conv2(x))
         #print(x.shape)
         #x = self.pool2(x)
-        #x = self.drop2(x)
+        x = self.drop2(x)
         
         x = x.view(x.size(0), -1)
         x = self.relu(self.linear3(x))
         #print(x.shape)
-        #x = self.drop3(x)
+        x = self.drop3(x)
         x = self.linear4(x)
         #print(x.shape)
         return x
+  
   
 class DQN_CNN_2015(nn.Module):
     def __init__(self, num_classes=6, init_weights=True):
@@ -202,7 +210,7 @@ class DQN_CNN_2015(nn.Module):
 
 class QLearner:
     #Learning rate for neural network
-    learning_rate: float = 5e-3 #0.1
+    learning_rate: float = 0.0005 #0.1
     #Punishes expectation values in future
     gamma: float = 0.95
     #Maximum size of transitions deque
@@ -256,7 +264,7 @@ class QLearner:
         self.l3: float = 1e-5
 
         # Set learning rate and regularisation
-        self.optimizer = optim.Adam(self.PNN.parameters(), lr=self.learning_rate, weight_decay=self.l3) #Add L2 regularization for Adam optimized
+        self.optimizer = optim.Adam(self.PNN.parameters(), lr=self.learning_rate)#, weight_decay=self.l3) #Add L2 regularization for Adam optimized
         
         #Set TNN-paramters as PNN at start
         self.TNN.load_state_dict(self.PNN.state_dict())
@@ -343,7 +351,7 @@ class QLearner:
 
 
         #Form tensor of initial Q values using the predictive NN for prediction
-        initial_states = torch.tensor(initial_states).float()
+        initial_states = torch.tensor(initial_states).type(torch.FloatTensor)
         if self.use_cuda: initial_states = initial_states.cuda()
 
         #Set both networks to evaluation mode
@@ -355,11 +363,11 @@ class QLearner:
         if self.use_cuda: q_values = q_values.cuda()
 
         #Q-values of actions chosen in each initial state
-        predict_q = q_values[np.arange(self.batch_size), actions] 
+        predict_q = q_values[np.arange(self.batch_size), actions]
         if self.use_cuda: predict_q = predict_q.cuda()
 
         #Form tensor from rewards to compute targets for Q matrix regression
-        target_q = torch.Tensor(rewards)
+        target_q = torch.tensor(rewards).type(torch.FloatTensor)
         if self.use_cuda: target_q = target_q.cuda()
 
         # New state is none if state is terminal which corresponds to the variable game_over = True
@@ -370,7 +378,7 @@ class QLearner:
         if len(non_terminal_batch) > 0:
             #Form tensor from new states
             new_states     = np.stack(non_terminal_batch[:, 2])
-            new_states     = torch.tensor(new_states).float()
+            new_states     = torch.tensor(new_states).type(torch.FloatTensor)
             if self.use_cuda: new_states = new_states.cuda()
 
             #Use target NN to compute next actions
@@ -388,7 +396,7 @@ class QLearner:
         #Set back to training mode
         self.TNN.train()
         self.PNN.train()
-
+        
         L = self.criterion(predict_q, target_q) #Total Loss
 
         loss = 0
@@ -473,6 +481,10 @@ def game_events_occurred(self, old_game_state: dict, self_action: str, new_game_
         self.qlearner.prioritized_experience_replay()
         self.step_counter = 0
 
+def movingaverage(interval, window_size = 15):
+    window = np.ones(int(window_size))/float(window_size)
+    return np.convolve(interval, window, 'same')
+
 def end_of_round(self, last_game_state: dict, last_action: str, events: List[str]):
     """
     Called at the end of each game or when the agent died to hand out final rewards.
@@ -516,13 +528,15 @@ def end_of_round(self, last_game_state: dict, last_action: str, events: List[str
 
         #Create plot for cumulative rewards
         x = np.arange(len(self.qlearner.rewards_per_episode))
-        plt.plot(x, self.qlearner.rewards_per_episode)
+        y = movingaverage(self.qlearner.rewards_per_episode)
+        plt.plot(x, y)
         plt.title("Cumulative rewards per episode")
         plt.savefig(self.directory + "/rewards" + suffix + ".png")
         plt.clf()
         #Create plot for loss
         x2 = np.arange(len(self.qlearner.Loss))
-        plt.plot(x2, self.qlearner.Loss)
+        y2 = movingaverage(self.qlearner.Loss)
+        plt.plot(x2, y2)
         plt.title("Loss")
         plt.savefig(self.directory + "/loss" + suffix + ".png")
         plt.clf()
