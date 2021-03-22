@@ -14,8 +14,8 @@ from neural_network import OurNeuralNetwork_conv
 # hyperparameters
 #input_size = 1137
 num_of_epochs = 100
-batch_size = 8
-learning_rate = 0.0001
+batch_size = 32
+learning_rate = 0.1
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 name = "15x15_conv_ep"+str(num_of_epochs)+"_bs"+str(batch_size)+"_lr"+str(learning_rate)+"_adam"
 
