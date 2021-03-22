@@ -39,8 +39,8 @@ def create_folder():
     return mydir
 
 
-ROWS = 7
-COLS = 7
+ROWS = 17
+COLS = 17
 FEATURES_PER_FIELD = 7
 
 class OurNeuralNetwork(nn.Module):
@@ -131,34 +131,35 @@ class NeuralNet(nn.Module):
     def __init__(self):
         super(NeuralNet, self).__init__()
 
-        self.conv1 = nn.Conv2d(7, 16, kernel_size = 3, padding = 1)
+        self.conv1 = nn.Conv2d(7, 32, kernel_size = 5, padding = 2)
         torch.nn.init.kaiming_uniform_(self.conv1.weight, mode='fan_in', nonlinearity='relu')
 
         self.pool1 = nn.MaxPool2d(2)
-        self.drop1 = nn.Dropout(0.2)
+        self.drop1 = nn.Dropout(0.1)
 
-        self.conv2 = nn.Conv2d(16, 32, kernel_size = 3, padding = 1)
+        self.conv2 = nn.Conv2d(32, 64, kernel_size = 3, padding = 1)
         torch.nn.init.kaiming_uniform_(self.conv2.weight, mode='fan_in', nonlinearity='relu')
 
-        self.linear3 = nn.Linear(32*3*3, 64)
-        torch.nn.init.kaiming_uniform_(self.linear3.weight, mode='fan_in', nonlinearity='relu')
-        self.drop3 = nn.Dropout(0.2)
+        self.pool2 = nn.MaxPool2d(2)
+        self.drop2 = nn.Dropout(0.1)
 
-        self.linear4 = nn.Linear(64,6)
+        self.linear3 = nn.Linear(64*4*4, 128)
+        torch.nn.init.kaiming_uniform_(self.linear3.weight, mode='fan_in', nonlinearity='relu')
+        self.drop3 = nn.Dropout(0.1)
+
+        self.linear4 = nn.Linear(128,6)
         torch.nn.init.kaiming_uniform_(self.linear4.weight, mode='fan_in', nonlinearity='relu')
         self.relu = nn.ReLU()
         
     def forward(self, x):
-        x = self.relu(self.conv1(x))
-        #print(x.shape)
-        ##print(x.shape)
-        x = self.pool1(x)
+        x = self.conv1(x)
+        x = self.relu(self.pool1(x))
         x = self.drop1(x)
         
-        x = self.relu(self.conv2(x))
+        x = self.conv2(x)
+        x = self.relu(self.pool2(x))
+        x = self.drop2(x)
         #print(x.shape)
-        #x = self.pool2(x)
-        #x = self.drop2(x)
         
         x = x.view(x.size(0), -1)
         x = self.relu(self.linear3(x))
@@ -213,11 +214,11 @@ class QLearner:
     #Punishes expectation values in future
     gamma: float = 0.9
     #Maximum size of transitions deque
-    memory_size: int = 4096*4
+    memory_size: int = 4096
     #Batch size used for training neural network
-    batch_size: int = 128*4 #500
+    batch_size: int = 128 #500
     #Balance between exploration and exploitation
-    exploration_decay: float = 0.99 #0.98
+    exploration_decay: float = 0.999 #0.98
     exploration_max: float = 1.0 #1.0
     exploration_min: float = 0.1
     #For debug plots
@@ -434,7 +435,7 @@ def setup_training(self):
 
     self.step_counter = 0
     self.steps_before_replay = 8
-    self.num_rounds = 100
+    self.num_rounds = 400
     #Create new folder with time step for test run
     self.directory = create_folder()
 
@@ -480,7 +481,7 @@ def game_events_occurred(self, old_game_state: dict, self_action: str, new_game_
         self.qlearner.prioritized_experience_replay()
         self.step_counter = 0
 
-def movingaverage(interval, window_size = 10):
+def movingaverage(interval, window_size = 30):
     window = np.ones(int(window_size))/float(window_size)
     return np.convolve(interval, window, 'same')
 
