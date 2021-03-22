@@ -7,7 +7,6 @@ import torch
 
 #Import learning algorithm including hyperparameters
 from .train import QLearner
-from .train import OurNeuralNetwork
 
 MODEL_FILE_NAME = "DQNN.pt"
 
@@ -26,24 +25,29 @@ def setup(self):
     :param self: This object is passed to all callbacks and you can set arbitrary values.
     """
 
-    #make_keras_picklable()
     #check if cuda is available and set device accordingly
     self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
     if self.train or not os.path.isfile(MODEL_FILE_NAME):
-        
         self.logger.info("Setting up model from scratch.")
         self.qlearner   = QLearner(self.logger)
     else:
         self.logger.info("Loading model from saved state.")
-        self.qlearner   = QLearner(self.logger)        
+        self.qlearner   = QLearner(self.logger)
+
+        #Load neural network
         NN = torch.load(MODEL_FILE_NAME, map_location=self.device)
         self.qlearner.PNN.load_state_dict(NN.state_dict())
         self.qlearner.PNN.eval()
         self.logger.info("Loaded parameters of NN.")
+
+        #Load transitions from memory
+        #with open("transitions.pt", "rb") as file:
+        #    self.qlearner.transitions = pickle.load(file)
         
         self.qlearner.is_training = False
         self.qlearner.is_fit = True
+        
 
 def act(self, game_state: dict) -> str:
     """

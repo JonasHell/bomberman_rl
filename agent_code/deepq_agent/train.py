@@ -105,21 +105,17 @@ class NeuralNet(nn.Module):
         x = self.conv2(x)
         x = self.relu(self.pool2(x))
         x = self.drop2(x)
-        #print(x.shape)
         
         x = x.view(x.size(0), -1)
         x = self.relu(self.linear3(x))
-        #print(x.shape)
-        #x = self.drop3(x)
         x = self.linear4(x)
-        #print(x.shape)
         return x
   
 class QLearner:
     #Learning rate for neural network
-    learning_rate: float = 0.0005 #0.1
+    learning_rate: float = 0.0005
     #Punishes expectation values in future
-    gamma: float = 0.9
+    gamma: float = 0.95
     #Maximum size of transitions deque
     memory_size: int = 4096
     #Batch size used for training neural network
@@ -127,7 +123,7 @@ class QLearner:
     #Balance between exploration and exploitation
     exploration_decay: float = 0.999 #0.98
     exploration_max: float = 1.0 #1.0
-    exploration_min: float = 0.1
+    exploration_min: float = 0.5
     #For debug plots
     rewards: List[float] = [0]
     rewards_per_episode: List[float] = [0]
@@ -453,8 +449,8 @@ def end_of_round(self, last_game_state: dict, last_action: str, events: List[str
         self.logger.info("Model saved to " + MODEL_FILE_NAME)
 
         #Store the training memory
-        with open("transitions.pt", "wb") as file:
-            pickle.dump(self.qlearner.transitions, file)
+        #with open("transitions.pt", "wb") as file:
+        #    pickle.dump(self.qlearner.transitions, file)
 
 
 def reward_from_events(self, events: List[str]) -> int:
@@ -465,16 +461,16 @@ def reward_from_events(self, events: List[str]) -> int:
     certain behavior.
     """
     game_rewards = {
-        e.COIN_COLLECTED: 50,
+        e.COIN_COLLECTED: 20,
         e.MOVED_DOWN: -0.05,
         e.MOVED_LEFT: -0.05,
         e.MOVED_UP: -0.05,
         e.MOVED_RIGHT: -0.05,
         e.BOMB_DROPPED: -0.05,
-        e.CRATE_DESTROYED: 1,
+        e.CRATE_DESTROYED: 10,
         e.WAITED: -0.1,
         e.INVALID_ACTION: -0.1,
-        e.KILLED_SELF: -20, 
+        e.KILLED_SELF: -50, 
     }
     reward_sum = 0
     for event in events:
