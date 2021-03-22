@@ -14,6 +14,7 @@ from torch.autograd import Variable
 import torch.nn as nn
 import torch.nn.functional as F
 import torchvision
+from torch.utils.data import DataLoader
 
 from torch.utils.tensorboard import SummaryWriter
 
@@ -122,7 +123,7 @@ class QLearner:
     batch_size: int = 128 #500
     #Balance between exploration and exploitation
     exploration_decay: float = 0.999 #0.98
-    exploration_max: float = 1.0 #1.0
+    exploration_max: float = 1.0
     exploration_min: float = 0.5
     #For debug plots
     rewards: List[float] = [0]
@@ -165,6 +166,7 @@ class QLearner:
         self.l1: float = 1
         self.l2: float = 1
         self.l3: float = 1e-5
+        self.expert_margin: float = 0.8
 
         # Set learning rate and regularisation
         self.optimizer = optim.Adam(self.PNN.parameters(), lr=self.learning_rate, weight_decay=self.l3) #Add L2 regularization for Adam optimized
@@ -182,7 +184,11 @@ class QLearner:
     def remember(self, state : np.array, action : str, next_state : np.array, reward: float , game_over : bool):
         #Store rewards for performance assessment
         self.rewards.append(reward) 
-        self.transitions.append([state, action, next_state, reward, game_over])
+        occurrence = 1
+        if len(self.transitions) == 0: self.transitions.append([state, action, next_state, reward, game_over, occurrence, False])
+        if ( not np.array_equal(self.transitions[-1][0], state) ) and ( self.transitions[-1][1] != action ): #Only append to transitions if the state and action are new!
+            self.transitions.append([state, action, next_state, reward, game_over, occurrence, False])
+        else: self.transitions[-1][5] += 1   #Raise occurrence
 
     def propose_action(self, game_state : dict):
         #Obtain hybrid vector representation from game_state dictionary
@@ -242,16 +248,37 @@ class QLearner:
         self.exploration_rate *= self.exploration_decay
         self.exploration_rate = max(self.exploration_min, self.exploration_rate)
 
+    #Compute 'large margin classification loss' from expert data
+    def NN_expert_loss(self, batch_size, initial_states, actions, q_values, predict_q):
+        count = torch.arange(6)
+        actions = np.array(actions)
+        actions = torch.tensor(actions.reshape(batch_size, 1)).int()
+        if self.use_cuda:
+            count = count.cuda()
+            actions = actions.cuda()
+        mask = (actions != count)*self.expert_margin
+        if self.use_cuda:
+            mask = mask.cuda()
+        L = torch.amax(q_values + mask, axis=1) - predict_q
+        return L
+
     #Update NN with small batch sampled from transitions
     def NN_update(self, batch):
 
         batch = np.array(batch, dtype=object)
-       
+        batch_size = len(batch)
         #Assemble arrays of initial and final states as well as rewards and actions
         initial_states = np.stack(batch[:, 0])
         actions        = np.array([self.action_id[_] for _ in batch[:, 1]])
         rewards        = np.array(batch[:, 3], dtype=np.float32)
+        occurences     = np.array(batch[:, 5], dtype=np.int16)
+        is_expert      = np.array(batch[:, 6], dtype=bool) # True if the transition is taken from expert data
 
+        is_expert = torch.tensor(is_expert).bool()
+        occurences = torch.tensor(occurences).int()
+        if self.use_cuda:
+            occurences = occurences.cuda()
+            is_expert = is_expert.cuda()
 
         #Form tensor of initial Q values using the predictive NN for prediction
         initial_states = torch.tensor(initial_states).type(torch.FloatTensor)
@@ -300,8 +327,10 @@ class QLearner:
         self.TNN.train()
         self.PNN.train()
         
-        L = self.criterion(predict_q, target_q) #Total Loss
-
+        #L = self.criterion(predict_q, target_q) #Total Loss
+        L = torch.sum( (predict_q - target_q) ** 2 ) #(torch.log(occurences)+1) * 
+        L_expert = torch.sum( self.NN_expert_loss(batch_size, initial_states, actions, q_values, predict_q)*is_expert )
+        L += L_expert*self.l2
         loss = 0
 
         if self.use_cuda:
@@ -327,6 +356,55 @@ class QLearner:
             self.TNN.load_state_dict(self.PNN.state_dict())
             self.TNN.eval()
 
+def load_data(self, directory, start_of_filename):
+    #train_set = BomberManDataSet("neural_network_pretraining/train_data/", "coin")
+    #test_set = BomberManDataSet("/test_data/", "coin")
+
+    features_input_list = []
+    labels_input_list = []
+    for filename in os.listdir(directory):
+        if filename.startswith(start_of_filename):
+            loaded = np.load(directory + filename)
+            features_input_list.append(loaded["features"])
+            labels_input_list.append(loaded["labels"])
+            #content = np.genfromtxt(directory + filename, delimiter=",")
+            #inputs.append(content)
+
+    # combine input_lists to large arrays
+    init_states = np.concatenate(features_input_list, axis=0)
+    actions = np.concatenate(labels_input_list)
+    test_size = actions.shape[0]
+    #print(actions.shape, actions.dtype)
+
+    # Create new state and rewards
+    new_states = np.copy(init_states)
+    #print(new_states.shape)
+    rewards = np.zeros(test_size)
+    action_names = []
+
+    for i in range(test_size):
+        x, y = np.max(np.argmax(init_states[6], axis=0)), np.max(np.argmax(init_states[6], axis=1))
+        if (actions[i]==0):
+            x_new, y_new = x, y-1
+        elif (actions[i]==1):
+            x_new, y_new = x+1, y
+        elif (actions[i]==2):
+            x_new, y_new = x, y+1
+        elif (actions[i]==3):
+            x_new, y_new = x-1, y
+
+        new_states[i][6][x][y] = 0
+        new_states[i][6][x_new][y_new] = 2
+        #print(actions[i])
+        #print(self.qlearner.actions[actions[i]])
+        action_names.append(self.qlearner.actions[actions[i]])
+        rewards[i] = -0.05
+        if (init_states[i][2][x_new][y_new] != 0):
+            new_states[i][2][x_new][y_new] = 0
+            rewards[i] += 50
+
+        return init_states, action_names, new_states, rewards
+
 def setup_training(self):
     """
     Initialise self for training purpose.
@@ -338,9 +416,19 @@ def setup_training(self):
 
     self.step_counter = 0
     self.steps_before_replay = 8
-    self.num_rounds = 400
+    self.num_rounds = 100
     #Create new folder with time step for test run
     self.directory = create_folder()
+
+    '''
+    #Load expert data as demonstrations for training
+    directory_expert = "test_data/"
+    start_of_filename = "coin"
+    init_states, action_names, new_states, rewards = load_data(directory_expert, start_of_filename)
+
+    for i in range(self.qlearner.memory_size):
+        self.qlearner.transitions.append([init_states[i], action_names[i], new_states[i], rewards[i], False, 1, True])
+    '''
 
 def game_events_occurred(self, old_game_state: dict, self_action: str, new_game_state: dict, events: List[str]):
     """
@@ -383,6 +471,15 @@ def game_events_occurred(self, old_game_state: dict, self_action: str, new_game_
     if self.step_counter == self.steps_before_replay:
         self.qlearner.prioritized_experience_replay()
         self.step_counter = 0
+
+    '''
+    # Additional online update
+    num_iter = 1 #Artificially increase number of updates if >1
+    transitions = deque(maxlen=num_iter)
+    for i in range(num_iter):
+        transitions.append([old_f, self_action, new_f, reward, False, 1, False])
+    self.qlearner.NN_update(transitions)
+    '''
 
 def movingaverage(interval, window_size = 30):
     window = np.ones(int(window_size))/float(window_size)
@@ -427,7 +524,7 @@ def end_of_round(self, last_game_state: dict, last_action: str, events: List[str
         #Store cumulative rewards
         np.savetxt(self.directory + "/rewards" + suffix + ".txt", self.qlearner.rewards_per_episode, fmt='%.3f')
         #Store loss
-        np.savetxt(self.directory + "/loss" + suffix + ",txt", self.qlearner.Loss, fmt='%.3f')
+        np.savetxt(self.directory + "/loss" + suffix + ".txt", self.qlearner.Loss, fmt='%.3f')
 
         #Create plot for cumulative rewards
         x = np.arange(len(self.qlearner.rewards_per_episode))
