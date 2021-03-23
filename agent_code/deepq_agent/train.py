@@ -44,6 +44,9 @@ ROWS = 17
 COLS = 17
 FEATURES_PER_FIELD = 7
 
+#Additional events
+SAFE_DESPITE_BOMB = "SAFE_DESPITE_BOMB"
+WITHIN_BOMB_REACH = "WITHIN_BOMB_REACH"
 
 #Converges for 7x7 network
 """
@@ -460,6 +463,58 @@ def game_events_occurred(self, old_game_state: dict, self_action: str, new_game_
         self.logger.debug(f'No new game state initialised after step {old_game_state["step"]}')
         return
 
+    
+    #Determine bomb rewards
+    #Iterate through bombs
+    #Use knowledge about game board
+    # xxxxxxx
+    # x     x
+    # x x x x
+    # x     x
+    # x x x x
+    # x     x
+    # xxxxxxx
+    #
+    # Stone walls that can block bombs are in rows and columns with even indices 0, 2, 4 ...
+    
+    within_bomb_reach = False
+    safe_despite_bomb = False
+
+    #Player position
+    x, y = new_game_state['self'][3]
+
+    for bomb in new_game_state['bombs']:
+        #Compute x and y distance from bomb
+        x_dist = np.abs(bomb[0][0] - x)
+        y_dist = np.abs(bomb[0][1] - y)
+
+        if  x_dist == 0 and y_dist == 0:
+            safe_despite_bomb = False
+            within_bomb_reach = True
+            
+        #Check whether bomb is threat horizontally
+        #Therefore we must be wihin bomb reach (x_dist <= 3)
+        #And we must be in uneven row
+        if  x_dist < 4 and y_dist == 0 and (y % 2) != 0:
+            safe_despite_bomb = False
+            within_bomb_reach = True
+
+        #Check whether bomb is threat vertically
+        if  y_dist < 4 and x_dist == 0 and (x % 2) != 0:
+            safe_despite_bomb = False
+            within_bomb_reach = True
+        
+        # If bomb is close and we are safe from all! bombs
+        if  x_dist + y_dist < 4 and not within_bomb_reach:
+            safe_despite_bomb = True
+
+    if within_bomb_reach:
+        events.append(WITHIN_BOMB_REACH)
+
+    if safe_despite_bomb:
+        events.append(SAFE_DESPITE_BOMB)
+        
+
     reward = reward_from_events(self, events)
 
     self.qlearner.remember(old_f, self_action, new_f, reward, game_over = False)
@@ -567,7 +622,9 @@ def reward_from_events(self, events: List[str]) -> int:
         e.CRATE_DESTROYED: 10,
         e.WAITED: -0.1,
         e.INVALID_ACTION: -0.1,
-        e.KILLED_SELF: -50, 
+        WITHIN_BOMB_REACH: -0.005,
+        SAFE_DESPITE_BOMB: 1,
+        e.KILLED_SELF: -30, 
     }
     reward_sum = 0
     for event in events:
