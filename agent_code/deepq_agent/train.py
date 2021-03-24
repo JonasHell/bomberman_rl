@@ -188,8 +188,9 @@ class QLearner:
         #Store rewards for performance assessment
         self.rewards.append(reward) 
         occurrence = 1
-        if len(self.transitions) == 0: self.transitions.append([state, action, next_state, reward, game_over, occurrence, False])
-        if ( not np.array_equal(self.transitions[-1][0], state) ) and ( self.transitions[-1][1] != action ): #Only append to transitions if the state and action are new!
+        if len(self.transitions) == 0: 
+            self.transitions.append([state, action, next_state, reward, game_over, occurrence, False])
+        else if ( not np.array_equal(self.transitions[-1][0], state) ) and ( self.transitions[-1][1] != action ): #Only append to transitions if the state and action are new!
             self.transitions.append([state, action, next_state, reward, game_over, occurrence, False])
         else: self.transitions[-1][5] += 1   #Raise occurrence
 
@@ -307,6 +308,7 @@ class QLearner:
         # Only compute maxq_actions for non-terminal states to update Q function
         # Therefore we exclude transitions which ended in a game over
         non_terminal    = (batch[:, 4] == False)
+        #Set back to training mode
         non_terminal_batch = batch[non_terminal, :] 
         if len(non_terminal_batch) > 0:
             #Form tensor from new states
@@ -613,18 +615,23 @@ def reward_from_events(self, events: List[str]) -> int:
     certain behavior.
     """
     game_rewards = {
-        e.COIN_COLLECTED: 20,
-        e.MOVED_DOWN: -0.05,
-        e.MOVED_LEFT: -0.05,
-        e.MOVED_UP: -0.05,
-        e.MOVED_RIGHT: -0.05,
-        e.BOMB_DROPPED: -0.05,
-        e.CRATE_DESTROYED: 10,
-        e.WAITED: -0.1,
-        e.INVALID_ACTION: -0.1,
-        WITHIN_BOMB_REACH: -0.005,
-        SAFE_DESPITE_BOMB: 1,
-        e.KILLED_SELF: -30, 
+        e.KILLED_OPPONENT: 1.0,
+        e.SURVIVED_ROUND: 0.1,
+        e.COIN_COLLECTED: 0.2,
+        e.CRATE_DESTROYED: 0.1,
+        SAFE_DESPITE_BOMB: 0.02,
+        WITHIN_BOMB_REACH: -0.000666,
+        e.MOVED_DOWN: -0.01,
+        e.MOVED_LEFT: -0.01,
+        e.MOVED_UP: -0.01,
+        e.MOVED_RIGHT: -0.01,
+        e.BOMB_DROPPED: -0.01,
+        e.WAITED: -0.01,
+        e.INVALID_ACTION: -0.02,
+        e.GOT_KILLED: -0.5,
+        e.KILLED_SELF: -1.0, 
+    }
+
     }
     reward_sum = 0
     for event in events:
