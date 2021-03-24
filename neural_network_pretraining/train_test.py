@@ -21,8 +21,8 @@ device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 name = "15x15_flat_ep"+str(num_of_epochs)+"_bs"+str(batch_size)+"_lr"+str(learning_rate)
 
 # data sets and data loaders
-train_set = BomberManDataSet("neural_network_pretraining/train_data/", "flat_coin")
-test_set = BomberManDataSet("neural_network_pretraining/test_data/", "flat_coin")
+train_set = BomberManDataSet("neural_network_pretraining/flat_train_data/", "coin")
+test_set = BomberManDataSet("neural_network_pretraining/flat_test_data/", "coin")
 
 train_loader = DataLoader(train_set, batch_size=batch_size, shuffle=True)
 test_loader = DataLoader(test_set, batch_size=batch_size, shuffle=True)

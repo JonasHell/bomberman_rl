@@ -227,7 +227,7 @@ def save_data(self):
     #x = self.states
     #y = self.preds
     #np.savetxt("../../neural_network_pretraining/test_data/coins_" + self.num + ".csv", np.concatenate((x, y), axis=1), delimiter=",")
-    np.savez_compressed("../../neural_network_pretraining/test_data/flat_coins_" + self.num,
+    np.savez_compressed("../../neural_network_pretraining/flat_train_data/flat_coins_" + self.num,
                         features=np.array(self.states, dtype=np.int16),
                         labels=np.array(self.preds, dtype=np.int16))
     print("saved")
