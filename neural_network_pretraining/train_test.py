@@ -9,19 +9,20 @@ from torch.utils.tensorboard import SummaryWriter
 
 from dataset import BomberManDataSet
 from neural_network import OurNeuralNetwork_conv
+from neural_network import OurNeuralNetwork_flat
 
 
 # hyperparameters
 #input_size = 1137
-num_of_epochs = 100
+num_of_epochs = 200
 batch_size = 32
 learning_rate = 0.01
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-name = "15x15_conv_noDropout_ep"+str(num_of_epochs)+"_bs"+str(batch_size)+"_lr"+str(learning_rate)
+name = "15x15_flat_ep"+str(num_of_epochs)+"_bs"+str(batch_size)+"_lr"+str(learning_rate)
 
 # data sets and data loaders
-train_set = BomberManDataSet("neural_network_pretraining/train_data/", "coin")
-test_set = BomberManDataSet("neural_network_pretraining/test_data/", "coin")
+train_set = BomberManDataSet("neural_network_pretraining/train_data/", "flat_coin")
+test_set = BomberManDataSet("neural_network_pretraining/test_data/", "flat_coin")
 
 train_loader = DataLoader(train_set, batch_size=batch_size, shuffle=True)
 test_loader = DataLoader(test_set, batch_size=batch_size, shuffle=True)
@@ -33,8 +34,10 @@ writer = SummaryWriter("runs/" + name)
 if os.path.isfile("neural_network_pretraining/"+name+".pt"):
     model = torch.load("neural_network_pretraining/"+name+".pt")
     model = model.to(device)
+    print("model loaded")
 else:
-    model = OurNeuralNetwork_conv().to(device)
+    model = OurNeuralNetwork_flat().to(device)
+    print("set up new model")
 
 # define criterion and optimizer
 criterion = nn.CrossEntropyLoss()
