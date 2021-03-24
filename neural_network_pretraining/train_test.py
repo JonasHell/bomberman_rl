@@ -17,7 +17,7 @@ num_of_epochs = 100
 batch_size = 32
 learning_rate = 0.01
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-name = "15x15_conv_ep"+str(num_of_epochs)+"_bs"+str(batch_size)+"_lr"+str(learning_rate)
+name = "15x15_conv_noDropout_ep"+str(num_of_epochs)+"_bs"+str(batch_size)+"_lr"+str(learning_rate)
 
 # data sets and data loaders
 train_set = BomberManDataSet("neural_network_pretraining/train_data/", "coin")
