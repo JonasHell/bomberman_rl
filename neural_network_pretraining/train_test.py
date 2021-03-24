@@ -87,7 +87,7 @@ for epoch in range(num_of_epochs):
         if (batch+1) % 100 == 0:
             print(f"[{epoch+1}/{num_of_epochs}] [{batch+1}/{num_total_steps_train}] loss={loss.item():.4f}, acc={correct*100./batch_size:.2f}%")
             writer.add_scalar('train loss', running_loss_train/100, epoch*num_total_steps_train+batch)
-            writer.add_scalar('train accuracy', running_correct_train/100, epoch*num_total_steps_train+batch)
+            writer.add_scalar('train accuracy', running_correct_train/100./batch_size*100., epoch*num_total_steps_train+batch)
 
             # set train matrics back to zero
             running_loss_train = 0
