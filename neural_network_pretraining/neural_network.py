@@ -38,7 +38,7 @@ class OurNeuralNetwork_conv(nn.Module):
 
         out = self.conv2(out) # bs x 64 x 5 x 5
         #print(out.size())
-        out = self.conv_dropout(out) # bs x 64 x 5 x 5
+        #out = self.conv_dropout(out) # bs x 64 x 5 x 5
         #print(out.size())
         out = F.max_pool2d(out, 2) # bs x 64 x 2 x 2
         #print(out.size())
