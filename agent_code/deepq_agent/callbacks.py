@@ -37,6 +37,8 @@ def setup(self):
 
         #Load neural network
         NN = torch.load(MODEL_FILE_NAME, map_location=self.device)
+        self.qlearner.TNN.load_state_dict(NN.state_dict())
+        self.qlearner.TNN.eval()
         self.qlearner.PNN.load_state_dict(NN.state_dict())
         self.qlearner.PNN.eval()
         self.logger.info("Loaded parameters of NN.")
