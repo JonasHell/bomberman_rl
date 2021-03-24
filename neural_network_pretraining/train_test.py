@@ -13,7 +13,7 @@ from neural_network import OurNeuralNetwork_flat
 
 
 # hyperparameters
-#input_size = 1137
+input_size = 1137
 num_of_epochs = 200
 batch_size = 32
 learning_rate = 0.01
@@ -32,11 +32,13 @@ writer = SummaryWriter("runs/" + name)
 
 # load model or initialize new one
 if os.path.isfile("neural_network_pretraining/"+name+".pt"):
-    model = torch.load("neural_network_pretraining/"+name+".pt")
+    model = OurNeuralNetwork_flat(input_size)
+    state_dict = torch.load("neural_network_pretraining/"+name+".pt")
+    model.load_state_dict(state_dict)
     model = model.to(device)
     print("model loaded")
 else:
-    model = OurNeuralNetwork_flat().to(device)
+    model = OurNeuralNetwork_flat(input_size).to(device)
     print("set up new model")
 
 # define criterion and optimizer
