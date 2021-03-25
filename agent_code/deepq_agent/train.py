@@ -3,6 +3,7 @@ import random
 import numpy as np
 from collections import namedtuple, deque
 from typing import List
+from random import shuffle
 import errno
 import os
 from datetime import datetime
@@ -14,14 +15,13 @@ from torch.autograd import Variable
 import torch.nn as nn
 import torch.nn.functional as F
 import torchvision
-from torch.utils.data import DataLoader
 
 from torch.utils.tensorboard import SummaryWriter
 
 import scipy
 
 #File name for neural network
-MODEL_FILE_NAME = "DQNN.pt"
+MODEL_FILE_NAME = "DQNN_DD2.pt"
 
 
 import events as e
@@ -43,6 +43,7 @@ def create_folder():
 ROWS = 17
 COLS = 17
 FEATURES_PER_FIELD = 7
+
 
 #Additional events
 SAFE_DESPITE_BOMB = "SAFE_DESPITE_BOMB"
@@ -109,25 +110,229 @@ class NeuralNet(nn.Module):
         x = self.conv2(x)
         x = self.relu(self.pool2(x))
         x = self.drop2(x)
+        #print(x.shape)
         
         x = x.view(x.size(0), -1)
         x = self.relu(self.linear3(x))
+        #print(x.shape)
+        #x = self.drop3(x)
         x = self.linear4(x)
+        #print(x.shape)
         return x
   
+
+def look_for_targets(free_space, start, targets, logger=None):
+    """Find direction of closest target that can be reached via free tiles.
+
+    Performs a breadth-first search of the reachable free tiles until a target is encountered.
+    If no target can be reached, the path that takes the agent closest to any target is chosen.
+
+    Args:
+        free_space: Boolean numpy array. True for free tiles and False for obstacles.
+        start: the coordinate from which to begin the search.
+        targets: list or array holding the coordinates of all target tiles.
+        logger: optional logger object for debugging.
+    Returns:
+        coordinate of first step towards closest target or towards tile closest to any target.
+    """
+    if len(targets) == 0: return None
+
+    frontier = [start]
+    parent_dict = {start: start}
+    dist_so_far = {start: 0}
+    best = start
+    best_dist = np.sum(np.abs(np.subtract(targets, start)), axis=1).min()
+
+    while len(frontier) > 0:
+        current = frontier.pop(0)
+        # Find distance from current position to all targets, track closest
+        d = np.sum(np.abs(np.subtract(targets, current)), axis=1).min()
+        if d + dist_so_far[current] <= best_dist:
+            best = current
+            best_dist = d + dist_so_far[current]
+        if d == 0:
+            # Found path to a target's exact position, mission accomplished!
+            best = current
+            break
+        # Add unexplored free neighboring tiles to the queue in a random order
+        x, y = current
+        neighbors = [(x, y) for (x, y) in [(x + 1, y), (x - 1, y), (x, y + 1), (x, y - 1)] if free_space[x, y]]
+        shuffle(neighbors)
+        for neighbor in neighbors:
+            if neighbor not in parent_dict:
+                frontier.append(neighbor)
+                parent_dict[neighbor] = current
+                dist_so_far[neighbor] = dist_so_far[current] + 1
+    if logger: logger.debug(f'Suitable target found at {best}')
+    # Determine the first step towards the best found target tile
+    current = best
+    while True:
+        if parent_dict[current] == start: return current
+        current = parent_dict[current]
+
+
+def reset_self(self):
+    self.bomb_history = deque([], 5)
+    self.coordinate_history = deque([], 20)
+    # While this timer is positive, agent will not hunt/attack opponents
+    self.ignore_others_timer = 0
+
+def rule_act(self, game_state):
+    """
+    Called each game step to determine the agent's next action.
+
+    You can find out about the state of the game environment via game_state,
+    which is a dictionary. Consult 'get_state_for_agent' in environment.py to see
+    what it contains.
+    """
+    # Check if we are in a different round
+    if game_state["round"] != self.current_round:
+        reset_self(self)
+        self.current_round = game_state["round"]
+    # Gather information about the game state
+    arena = game_state['field']
+    _, score, bombs_left, (x, y) = game_state['self']
+    bombs = game_state['bombs']
+    bomb_xys = [xy for (xy, t) in bombs]
+    others = [xy for (n, s, b, xy) in game_state['others']]
+    coins = game_state['coins']
+    bomb_map = np.ones(arena.shape) * 5
+    for (xb, yb), t in bombs:
+        for (i, j) in [(xb + h, yb) for h in range(-3, 4)] + [(xb, yb + h) for h in range(-3, 4)]:
+            if (0 < i < bomb_map.shape[0]) and (0 < j < bomb_map.shape[1]):
+                bomb_map[i, j] = min(bomb_map[i, j], t)
+
+    # If agent has been in the same location three times recently, it's a loop
+    if self.coordinate_history.count((x, y)) > 2:
+        self.ignore_others_timer = 5
+    else:
+        self.ignore_others_timer -= 1
+    self.coordinate_history.append((x, y))
+
+    # Check which moves make sense at all
+    directions = [(x, y), (x + 1, y), (x - 1, y), (x, y + 1), (x, y - 1)]
+    valid_tiles, valid_actions = [], []
+    for d in directions:
+        if ((arena[d] == 0) and
+                (game_state['explosion_map'][d] <= 1) and
+                (bomb_map[d] > 0) and
+                (not d in others) and
+                (not d in bomb_xys)):
+            valid_tiles.append(d)
+    if (x - 1, y) in valid_tiles: valid_actions.append('LEFT')
+    if (x + 1, y) in valid_tiles: valid_actions.append('RIGHT')
+    if (x, y - 1) in valid_tiles: valid_actions.append('UP')
+    if (x, y + 1) in valid_tiles: valid_actions.append('DOWN')
+    if (x, y) in valid_tiles: valid_actions.append('WAIT')
+    # Disallow the BOMB action if agent dropped a bomb in the same spot recently
+    if (bombs_left > 0) and (x, y) not in self.bomb_history: valid_actions.append('BOMB')
+    self.logger.debug(f'Valid actions: {valid_actions}')
+
+    # Collect basic action proposals in a queue
+    # Later on, the last added action that is also valid will be chosen
+    action_ideas = ['UP', 'DOWN', 'LEFT', 'RIGHT']
+    shuffle(action_ideas)
+
+    # Compile a list of 'targets' the agent should head towards
+    # modified (16-->8)
+    dead_ends = [(x, y) for x in range(1, 8) for y in range(1, 8) if (arena[x, y] == 0)
+                 and ([arena[x + 1, y], arena[x - 1, y], arena[x, y + 1], arena[x, y - 1]].count(0) == 1)]
+    crates = [(x, y) for x in range(1, 8) for y in range(1, 8) if (arena[x, y] == 1)]
+    targets = coins + dead_ends + crates
+    # Add other agents as targets if in hunting mode or no crates/coins left
+    if self.ignore_others_timer <= 0 or (len(crates) + len(coins) == 0):
+        targets.extend(others)
+
+    # Exclude targets that are currently occupied by a bomb
+    targets = [targets[i] for i in range(len(targets)) if targets[i] not in bomb_xys]
+
+    # Take a step towards the most immediately interesting target
+    free_space = arena == 0
+    if self.ignore_others_timer > 0:
+        for o in others:
+            free_space[o] = False
+    d = look_for_targets(free_space, (x, y), targets, None)
+    if d == (x, y - 1): action_ideas.append('UP')
+    if d == (x, y + 1): action_ideas.append('DOWN')
+    if d == (x - 1, y): action_ideas.append('LEFT')
+    if d == (x + 1, y): action_ideas.append('RIGHT')
+    if d is None:
+        action_ideas.append('WAIT')
+
+    # Add proposal to drop a bomb if at dead end
+    if (x, y) in dead_ends:
+        action_ideas.append('BOMB')
+    # Add proposal to drop a bomb if touching an opponent
+    if len(others) > 0:
+        if (min(abs(xy[0] - x) + abs(xy[1] - y) for xy in others)) <= 1:
+            action_ideas.append('BOMB')
+    # Add proposal to drop a bomb if arrived at target and touching crate
+    if d == (x, y) and ([arena[x + 1, y], arena[x - 1, y], arena[x, y + 1], arena[x, y - 1]].count(1) > 0):
+        action_ideas.append('BOMB')
+
+    # Add proposal to run away from any nearby bomb about to blow
+    for (xb, yb), t in bombs:
+        if (xb == x) and (abs(yb - y) < 4):
+            # Run away
+            if (yb > y): action_ideas.append('UP')
+            if (yb < y): action_ideas.append('DOWN')
+            # If possible, turn a corner
+            action_ideas.append('LEFT')
+            action_ideas.append('RIGHT')
+        if (yb == y) and (abs(xb - x) < 4):
+            # Run away
+            if (xb > x): action_ideas.append('LEFT')
+            if (xb < x): action_ideas.append('RIGHT')
+            # If possible, turn a corner
+            action_ideas.append('UP')
+            action_ideas.append('DOWN')
+    # Try random direction if directly on top of a bomb
+    for (xb, yb), t in bombs:
+        if xb == x and yb == y:
+            action_ideas.extend(action_ideas[:4])
+
+    # Pick last action added to the proposals list that is also valid
+    while len(action_ideas) > 0:
+        a = action_ideas.pop()
+        if a in valid_actions:
+            # Keep track of chosen action for cycle detection
+            if a == 'BOMB':
+                self.bomb_history.append((x, y))
+
+            return a
+
+
 class QLearner:
     #Learning rate for neural network
-    learning_rate: float = 0.0005
+    learning_rate: float = 0.0005 #0.1
     #Punishes expectation values in future
-    gamma: float = 0.95
+    gamma: float = 0.9
     #Maximum size of transitions deque
-    memory_size: int = 4096
+    memory_size: int = 2048*2
     #Batch size used for training neural network
-    batch_size: int = 128 #500
+    batch_size: int = 256 #500
+
+    #Number of expert transitions taken in batches after pretraining
+    expert_share: int = 13
+
+    #Add pretraining phase before 
+    is_pretraining: bool = True
+    #Number of transitions collected before pretraining
+    expert_memory_size: int = 512
+    #Number of pretraining iterations with batch_size
+    expert_training_rounds: int = 16
+    #Stores when expert has demonstrated action
+    last_action_was_expert = False
+
     #Balance between exploration and exploitation
-    exploration_decay: float = 0.999 #0.98
-    exploration_max: float = 1.0
-    exploration_min: float = 0.5
+    exploration_decay: float = 0.99 #0.98
+    exploration_max: float = 0.1 #1.0
+    exploration_min: float = 0.05
+    
+    expert_decay: float = 0.999 #0.98
+    expert_max: float = 0.0 #1.0
+    expert_min: float = 0.0
+
     #For debug plots
     rewards: List[float] = [0]
     rewards_per_episode: List[float] = [0]
@@ -147,12 +352,14 @@ class QLearner:
 
     def __init__(self, logger):
         #Memory of the model, stores states and actions
-        self.transitions = deque(maxlen=self.memory_size)
+        self.transitions   = deque(maxlen=self.memory_size)
+        self.expert_buffer = deque(maxlen=self.expert_memory_size)
         self.logger      = logger
 
         #Determines exploration vs exploitation
-        self.exploration_rate = self.exploration_max
-        self.use_cuda: bool = True #Use GPU to train and play model
+        self.exploration_rate = self.exploration_max        
+        self.expert_rate = self.expert_max
+        self.use_cuda: bool = False #Use GPU to train and play model
 
         # Double QNN
         self.TNN = NeuralNet() #Target Neural Network (TNN)
@@ -162,7 +369,7 @@ class QLearner:
             self.PNN = self.PNN.cuda()
         
         # Update frequency of target network
-        self.TR: int = 128 #How often the parameters of the TNN should be replaced with the PNN
+        self.TR: int = 32 #How often the parameters of the TNN should be replaced with the PNN
         self.tr: int = 0 #counter of TR
 
         # Loss weights for DQfD
@@ -183,27 +390,54 @@ class QLearner:
         self.writer = SummaryWriter()
         self.epoch = 0
 
+        #Add rule based agent code
+        np.random.seed()
+        # Fixed length FIFO queues to avoid repeating the same actions
+        self.bomb_history = deque([], 5)
+        self.coordinate_history = deque([], 20)
+        # While this timer is positive, agent will not hunt/attack opponents
+        self.ignore_others_timer = 0
+        self.current_round = 0
+
+
 
     def remember(self, state : np.array, action : str, next_state : np.array, reward: float , game_over : bool):
         #Store rewards for performance assessment
-        self.rewards.append(reward) 
-        occurrence = 1
-        if len(self.transitions) == 0: 
-            self.transitions.append([state, action, next_state, reward, game_over, occurrence, False])
-        else if ( not np.array_equal(self.transitions[-1][0], state) ) and ( self.transitions[-1][1] != action ): #Only append to transitions if the state and action are new!
-            self.transitions.append([state, action, next_state, reward, game_over, occurrence, False])
-        else: self.transitions[-1][5] += 1   #Raise occurrence
+        self.rewards.append(reward)
+
+        if self.is_pretraining:
+            self.expert_buffer.append([state, action, next_state, reward, game_over, self.last_action_was_expert])
+        else:
+            self.transitions.append([state, action, next_state, reward, game_over, self.last_action_was_expert])
 
     def propose_action(self, game_state : dict):
-        #Obtain hybrid vector representation from game_state dictionary
-        state = state_to_features_hybrid_vec(game_state)
+        # Pretraining with expert data
+        if self.is_pretraining:
+            action = rule_act(self, game_state)
+            self.last_action_was_expert = True
+            if action is None:
+              action = "WAIT"
+            return action
 
         # Exploration vs exploitation
         if self.is_training and random.random() < self.exploration_rate:
+            self.last_action_was_expert = False
             self.logger.debug(f'Choosing action purely at random with an exploration rate: {np.round(self.exploration_rate, 2)}')
-        # 80%: walk in any direction. 10% wait. 10% bomb.
+            # 80%: walk in any direction. 10% wait. 10% bomb.
             return np.random.choice(self.actions, p=[.2, .2, .2, .2, .1, .1])
+        #Optionally also choose certain percentage of new expert actions during Q training
+        elif self.is_training and random.random() < self.expert_rate:
+            action = rule_act(self, game_state)
+            self.last_action_was_expert = True
+            if action is None:
+              action = "WAIT"
+            return action
+
+        self.last_action_was_expert = False
         
+        #Obtain hybrid vector representation from game_state dictionary
+        state = state_to_features_hybrid_vec(game_state)
+
         #Have NN predict next move
         self.logger.debug(f'Predict q value array in step {game_state["step"]}')
         q_values = self.PNN_predict([state]).reshape(1, -1)
@@ -214,6 +448,7 @@ class QLearner:
         self.logger.info(f'Choosing {proposed_action} where {list(zip(self.actions, q_values[0]))}')
 
         return proposed_action
+
 
     #Use PNN for prediction of next move
     def PNN_predict(self, state):
@@ -234,6 +469,15 @@ class QLearner:
 
         return q_values
 
+    def expert_experience_replay(self):
+        if len(self.expert_buffer) < self.batch_size:
+            return
+        
+        #Sample random batch of experiences from expert buffer
+        batch = random.sample(self.expert_buffer, self.batch_size)
+        #Run batch on NN
+        self.NN_update(batch)
+
     def prioritized_experience_replay(self): #not prioritized but normal experience replay still
         #Check whether there are enough instances in experience buffer
         if len(self.transitions) < self.batch_size:
@@ -242,8 +486,14 @@ class QLearner:
         else:
             self.logger.debug(f'{len(self.transitions)} in experience buffer')
         
-        #Sample random batch of experiences
-        batch = random.sample(self.transitions, self.batch_size)
+        #Sample random batch of experiences from Q learning
+        batch   = random.sample(self.transitions, self.batch_size - self.expert_share)
+        #Always keep a certain share of experiences from expert buffer even after pretraining
+        expert_batch = random.sample(self.expert_buffer, self.expert_share)
+
+        batch.extend(expert_batch)
+
+
 
         #Run batch on NN
         self.NN_update(batch)
@@ -251,6 +501,10 @@ class QLearner:
         #Update decay of exploration rate down to self.exploration_min
         self.exploration_rate *= self.exploration_decay
         self.exploration_rate = max(self.exploration_min, self.exploration_rate)
+
+        #Update decay of exploration rate down to self.exploration_min
+        self.expert_rate *= self.expert_decay
+        self.expert_rate = max(self.expert_min, self.expert_rate)
 
     #Compute 'large margin classification loss' from expert data
     def NN_expert_loss(self, batch_size, initial_states, actions, q_values, predict_q):
@@ -275,13 +529,10 @@ class QLearner:
         initial_states = np.stack(batch[:, 0])
         actions        = np.array([self.action_id[_] for _ in batch[:, 1]])
         rewards        = np.array(batch[:, 3], dtype=np.float32)
-        occurences     = np.array(batch[:, 5], dtype=np.int16)
-        is_expert      = np.array(batch[:, 6], dtype=bool) # True if the transition is taken from expert data
+        is_expert      = np.array(batch[:, 5], dtype=bool) # True if the transition is taken from expert data
 
-        is_expert = torch.tensor(is_expert).bool()
-        occurences = torch.tensor(occurences).int()
+        is_expert = torch.tensor(is_expert).type(torch.BoolTensor)
         if self.use_cuda:
-            occurences = occurences.cuda()
             is_expert = is_expert.cuda()
 
         #Form tensor of initial Q values using the predictive NN for prediction
@@ -317,10 +568,13 @@ class QLearner:
             if self.use_cuda: new_states = new_states.cuda()
 
             #Use target NN to compute next actions
-            q_next = self.TNN(new_states)
-
+            q_next = self.PNN(new_states)           #all PNN Q-values of next state
+            a_next = torch.argmax(q_next, axis=1)   #best action of next state
+            maxq = self.TNN(new_states)             #all TNN Q-values of next state
+            maxq = Variable(maxq, requires_grad = False)
+            maxq_actions = maxq[np.arange(len(non_terminal_batch)), a_next] #new Q-value
             #Choose action with highest Q value
-            maxq_actions = torch.amax(q_next, axis=1 ) 
+            #maxq_actions = torch.amax(q_next, axis=1 ) 
             #print(maxq_actions.shape, maxq_actions.dtype, rewards.shape, rewards.dtype)
             if self.use_cuda: maxq_actions = maxq_actions.cuda()
 
@@ -328,13 +582,14 @@ class QLearner:
             mask = torch.tensor(non_terminal)
             target_q[mask] += self.gamma * maxq_actions
 
+
         #Set back to training mode
-        self.TNN.train()
         self.PNN.train()
         
-        #L = self.criterion(predict_q, target_q) #Total Loss
-        L = torch.sum( (predict_q - target_q) ** 2 ) #(torch.log(occurences)+1) * 
-        L_expert = torch.sum( self.NN_expert_loss(batch_size, initial_states, actions, q_values, predict_q)*is_expert )
+        L = torch.sum( (predict_q - target_q) ** 2 )/batch_size 
+
+        expert_size = torch.sum(is_expert)
+        L_expert = torch.sum( self.NN_expert_loss(batch_size, initial_states, actions, q_values, predict_q)*is_expert ) / expert_size
         L += L_expert*self.l2
         loss = 0
 
@@ -345,7 +600,6 @@ class QLearner:
 
         #Store loss for debugging
         self.Loss.append(loss)
-        self.writer.add_scalar("Loss/train", loss, self.epoch)
 
         # Clear out the gradients of all variables in this optimizer before backpropagation
         self.optimizer.zero_grad()
@@ -361,55 +615,6 @@ class QLearner:
             self.TNN.load_state_dict(self.PNN.state_dict())
             self.TNN.eval()
 
-def load_data(self, directory, start_of_filename):
-    #train_set = BomberManDataSet("neural_network_pretraining/train_data/", "coin")
-    #test_set = BomberManDataSet("/test_data/", "coin")
-
-    features_input_list = []
-    labels_input_list = []
-    for filename in os.listdir(directory):
-        if filename.startswith(start_of_filename):
-            loaded = np.load(directory + filename)
-            features_input_list.append(loaded["features"])
-            labels_input_list.append(loaded["labels"])
-            #content = np.genfromtxt(directory + filename, delimiter=",")
-            #inputs.append(content)
-
-    # combine input_lists to large arrays
-    init_states = np.concatenate(features_input_list, axis=0)
-    actions = np.concatenate(labels_input_list)
-    test_size = actions.shape[0]
-    #print(actions.shape, actions.dtype)
-
-    # Create new state and rewards
-    new_states = np.copy(init_states)
-    #print(new_states.shape)
-    rewards = np.zeros(test_size)
-    action_names = []
-
-    for i in range(test_size):
-        x, y = np.max(np.argmax(init_states[6], axis=0)), np.max(np.argmax(init_states[6], axis=1))
-        if (actions[i]==0):
-            x_new, y_new = x, y-1
-        elif (actions[i]==1):
-            x_new, y_new = x+1, y
-        elif (actions[i]==2):
-            x_new, y_new = x, y+1
-        elif (actions[i]==3):
-            x_new, y_new = x-1, y
-
-        new_states[i][6][x][y] = 0
-        new_states[i][6][x_new][y_new] = 2
-        #print(actions[i])
-        #print(self.qlearner.actions[actions[i]])
-        action_names.append(self.qlearner.actions[actions[i]])
-        rewards[i] = -0.05
-        if (init_states[i][2][x_new][y_new] != 0):
-            new_states[i][2][x_new][y_new] = 0
-            rewards[i] += 50
-
-        return init_states, action_names, new_states, rewards
-
 def setup_training(self):
     """
     Initialise self for training purpose.
@@ -421,19 +626,9 @@ def setup_training(self):
 
     self.step_counter = 0
     self.steps_before_replay = 8
-    self.num_rounds = 100
+    self.num_rounds = 50
     #Create new folder with time step for test run
     self.directory = create_folder()
-
-    '''
-    #Load expert data as demonstrations for training
-    directory_expert = "test_data/"
-    start_of_filename = "coin"
-    init_states, action_names, new_states, rewards = load_data(directory_expert, start_of_filename)
-
-    for i in range(self.qlearner.memory_size):
-        self.qlearner.transitions.append([init_states[i], action_names[i], new_states[i], rewards[i], False, 1, True])
-    '''
 
 def game_events_occurred(self, old_game_state: dict, self_action: str, new_game_state: dict, events: List[str]):
     """
@@ -521,22 +716,26 @@ def game_events_occurred(self, old_game_state: dict, self_action: str, new_game_
 
     self.qlearner.remember(old_f, self_action, new_f, reward, game_over = False)
 
-    #Only replay experiences every fixed number of steps
-    self.step_counter   += 1
-    self.qlearner.epoch += 1
+    #Only collect transitions during pretraining
+    #No prioritized experience replay during pretraining
+    if self.qlearner.is_pretraining:
+        #If we have enough expert transitions
+        #Train network for self.expert_training_rounds with self.batch_size sized batches from expert buffer
+        #Then start regular Q learning
+        if len(self.qlearner.expert_buffer) == self.qlearner.expert_memory_size:
+            for i in range(self.qlearner.expert_training_rounds):
+                self.qlearner.expert_experience_replay()
+            
+            self.qlearner.is_pretraining = False
+    else:
+        #Only replay experiences every fixed number of steps
+        self.step_counter   += 1
+        self.qlearner.epoch += 1
 
-    if self.step_counter == self.steps_before_replay:
-        self.qlearner.prioritized_experience_replay()
-        self.step_counter = 0
+        if self.step_counter == self.steps_before_replay:
+            self.qlearner.prioritized_experience_replay()
+            self.step_counter = 0
 
-    '''
-    # Additional online update
-    num_iter = 1 #Artificially increase number of updates if >1
-    transitions = deque(maxlen=num_iter)
-    for i in range(num_iter):
-        transitions.append([old_f, self_action, new_f, reward, False, 1, False])
-    self.qlearner.NN_update(transitions)
-    '''
 
 def movingaverage(interval, window_size = 30):
     window = np.ones(int(window_size))/float(window_size)
@@ -561,7 +760,9 @@ def end_of_round(self, last_game_state: dict, last_action: str, events: List[str
 
     self.qlearner.remember(last_f, last_action, None, reward, game_over = True)
     self.qlearner.epoch += 1
-    self.qlearner.prioritized_experience_replay()
+
+    if not self.qlearner.is_pretraining:
+        self.qlearner.prioritized_experience_replay()
 
     #Add rewards for current episode
     self.qlearner.rewards_per_episode.append(np.sum(self.qlearner.rewards))
@@ -584,19 +785,21 @@ def end_of_round(self, last_game_state: dict, last_action: str, events: List[str
         np.savetxt(self.directory + "/loss" + suffix + ".txt", self.qlearner.Loss, fmt='%.3f')
 
         #Create plot for cumulative rewards
-        x = np.arange(len(self.qlearner.rewards_per_episode))
-        y = movingaverage(self.qlearner.rewards_per_episode)
-        plt.plot(x, y)
-        plt.title("Cumulative rewards per episode")
-        plt.savefig(self.directory + "/rewards" + suffix + ".png")
-        plt.clf()
+        if len(self.qlearner.rewards_per_episode) > 0:
+          x = np.arange(len(self.qlearner.rewards_per_episode))
+          y = movingaverage(self.qlearner.rewards_per_episode)
+          plt.plot(x, y)
+          plt.title("Cumulative rewards per episode")
+          plt.savefig(self.directory + "/rewards" + suffix + ".png")
+          plt.clf()
         #Create plot for loss
-        x2 = np.arange(len(self.qlearner.Loss))
-        y2 = movingaverage(self.qlearner.Loss)
-        plt.plot(x2, y2)
-        plt.title("Loss")
-        plt.savefig(self.directory + "/loss" + suffix + ".png")
-        plt.clf()
+        if len(self.qlearner.Loss) > 0:
+          x2 = np.arange(len(self.qlearner.Loss))
+          y2 = movingaverage(self.qlearner.Loss)
+          plt.plot(x2, y2)
+          plt.title("Loss")
+          plt.savefig(self.directory + "/loss" + suffix + ".png")
+          plt.clf()
         
         # save the NN-model
         torch.save(self.qlearner.PNN, MODEL_FILE_NAME)
@@ -632,7 +835,6 @@ def reward_from_events(self, events: List[str]) -> int:
         e.KILLED_SELF: -1.0, 
     }
 
-    }
     reward_sum = 0
     for event in events:
         if event in game_rewards:
