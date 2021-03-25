@@ -18,11 +18,11 @@ from agent_code.our_agent.modified_rule_based_agent import Modified_Rule_Based_A
 
 ACTIONS = ['UP', 'RIGHT', 'DOWN', 'LEFT', 'WAIT', 'BOMB']
 #MODEL_FILE_NAME = "our-saved-model.pt"
-MODEL_FILE_NAME = "../../neural_network_pretraining/15x15_ep100_bs32_lr0.01_statedict.pt"
+MODEL_FILE_NAME = "../../neural_network_pretraining/15x15_flat_ep200_bs32_lr0.01_state_dict.pt"
 ROWS = 17
 COLS = 17
 FEATURES_PER_FIELD = 7
-SIZE_OF_INPUT = ROWS * COLS * FEATURES_PER_FIELD
+SIZE_OF_INPUT = 1137#ROWS * COLS * FEATURES_PER_FIELD
 RANDOM_PROB = 0.0
 
 
@@ -46,13 +46,13 @@ def setup(self):
     # check if sved version is available, otherwise initialize new model
     if os.path.isfile(MODEL_FILE_NAME):
         #self.model = torch.load(MODEL_FILE_NAME, map_location=self.device)
-        self.model = OurNeuralNetwork(SIZE_OF_INPUT)
+        self.model = OurNeuralNetwork_old(SIZE_OF_INPUT)
         state_dict = torch.load(MODEL_FILE_NAME)
         self.model.load_state_dict(state_dict)
         self.logger.info("Loaded saved model.")
         print("Loaded saved Model.")
     else:
-        self.model = OurNeuralNetwork(SIZE_OF_INPUT)
+        self.model = OurNeuralNetwork_old(SIZE_OF_INPUT)
         self.logger.info("Setting up model from Scratch.")
         print("Setting up model from Scratch.")
     
@@ -83,7 +83,7 @@ def act(self, game_state: dict) -> str:
         # 80%: walk in any direction. 10% wait. 10% bomb.
         return np.random.choice(ACTIONS, p=[0.2, 0.2, 0.2, 0.2, 0.1, 0.1])
 
-    state_vector = torch.tensor(state_to_features(game_state), dtype=torch.float).to(self.device)
+    state_vector = torch.tensor(state_to_features_flat(game_state), dtype=torch.float).to(self.device)
     out = self.model(state_vector)
    
     self.logger.debug("Querring model for best action.")
