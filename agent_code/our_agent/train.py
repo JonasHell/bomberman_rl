@@ -47,7 +47,7 @@ def setup_training(self):
 
     self.states = [] # array to save the game states that occured
     self.targets = [] # array to save what the rule based agent would do
-    self.expert = Modified_Rule_Based_Agent()
+    self.expert = Modified_Rule_Based_Agent7()
     self.logger.debug("Everything is set up for this training game.")
 
 
@@ -66,7 +66,7 @@ def game_events_occurred(self, old_game_state: dict, self_action: str, new_game_
     if target is not None:
         # append to states and target
         self.targets.append(ACTIONS.index(target)) # CrossEntropyLoss just needs the index of target class
-        self.states.append(state_to_features_flat(new_game_state))
+        self.states.append(state_to_features_flat7(new_game_state))
         self.global_step += 1
 
         if self.global_step % self.batch_size == 0:
