@@ -18,7 +18,7 @@ from agent_code.our_agent.modified_rule_based_agent import Modified_Rule_Based_A
 
 
 ACTIONS = ['UP', 'RIGHT', 'DOWN', 'LEFT', 'WAIT', 'BOMB']
-MODEL_FILE_NAME = "plotting_7x7_layer3_batch4_lr01_sgd_1000games"
+MODEL_FILE_NAME = "plotting_7x7_layer3_batch1_lr01_sgd_1000games"
 
 
 def setup_training(self):
@@ -36,7 +36,7 @@ def setup_training(self):
     #self.optimizer = optim.Adam(self.model.parameters(), lr=0.001, weight_decay=0.0005)
     self.optimizer = optim.SGD(self.model.parameters(), lr=self.learning_rate)
     #self.optimizer = optim.Adam(self.model.parameters(), lr=0.1)
-    self.batch_size = 4
+    self.batch_size = 1
     
     # init counter
     self.global_step = 0
