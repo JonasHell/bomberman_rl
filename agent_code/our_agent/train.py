@@ -18,7 +18,7 @@ from agent_code.our_agent.modified_rule_based_agent import Modified_Rule_Based_A
 
 
 ACTIONS = ['UP', 'RIGHT', 'DOWN', 'LEFT', 'WAIT', 'BOMB']
-MODEL_FILE_NAME = "plotting_15x15_layer3_batch4_lr01_sgd_10000games"
+MODEL_FILE_NAME = "plotting_15x15_layer3_batch4_lr01_sgd_1000games"
 
 
 def setup_training(self):
@@ -110,6 +110,7 @@ def game_events_occurred(self, old_game_state: dict, self_action: str, new_game_
 
             self.writer.add_scalar("train loss", loss, self.global_step)
             self.writer.add_scalar("train accuracy", correct*100./self.batch_size, self.global_step)
+            self.writer.add_scalar("train accumulative accuracy", self.correct_counter*100./self.batch_size, self.global_step)
 
             #for param in self.model.parameters():
                 #print(torch.max(param.data))
