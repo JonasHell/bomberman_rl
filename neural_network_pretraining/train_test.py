@@ -18,11 +18,11 @@ num_of_epochs = 200
 batch_size = 32
 learning_rate = 0.01
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-name = "plotting_15x15_flat_ep"+str(num_of_epochs)+"_bs"+str(batch_size)+"_lr"+str(learning_rate)
+name = "plotting_15x15_conv_ep"+str(num_of_epochs)+"_bs"+str(batch_size)+"_lr"+str(learning_rate)
 
 # data sets and data loaders
-train_set = BomberManDataSet("neural_network_pretraining/flat_train_data/", "coin")
-test_set = BomberManDataSet("neural_network_pretraining/flat_test_data/", "coin")
+train_set = BomberManDataSet("neural_network_pretraining/conv_train_data/", "coin")
+test_set = BomberManDataSet("neural_network_pretraining/conv_test_data/", "coin")
 
 train_loader = DataLoader(train_set, batch_size=batch_size, shuffle=True)
 test_loader = DataLoader(test_set, batch_size=batch_size, shuffle=True)
@@ -32,13 +32,13 @@ writer = SummaryWriter("runs/" + name)
 
 # load model or initialize new one
 if os.path.isfile("neural_network_pretraining/"+name+".pt"):
-    model = OurNeuralNetwork_flat(input_size)
+    model = OurNeuralNetwork_conv()
     state_dict = torch.load("neural_network_pretraining/"+name+".pt")
     model.load_state_dict(state_dict)
     model = model.to(device)
     print("model loaded")
 else:
-    model = OurNeuralNetwork_flat(input_size).to(device)
+    model = OurNeuralNetwork_conv().to(device)
     print("set up new model")
 
 # define criterion and optimizer
