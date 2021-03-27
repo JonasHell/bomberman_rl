@@ -44,7 +44,7 @@ def setup(self):
     self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
     # check if sved version is available, otherwise initialize new model
-    if os.path.isfile(MODEL_FILE_NAME):
+    if False:#os.path.isfile(MODEL_FILE_NAME):
         #self.model = torch.load(MODEL_FILE_NAME, map_location=self.device)
         self.model = OurNeuralNetwork_old(SIZE_OF_INPUT)
         state_dict = torch.load(MODEL_FILE_NAME)
