@@ -187,7 +187,7 @@ class Modified_Rule_Based_Agent:
                     self.bomb_history.append((x, y))
                 return a
 
-class Modified_Rule_Based_Agent_7:
+class Modified_Rule_Based_Agent7:
     """
     Copy of the rule_based_agent code.
     Modified to allow handling as a class.
