@@ -7,8 +7,7 @@ class OurNeuralNetwork_flat(nn.Module):
         super(OurNeuralNetwork_flat, self).__init__()
         self.linear1 = nn.Linear(input_size, 256) # input_size 1137
         self.linear2 = nn.Linear(256, 64)
-        self.linear3 = nn.Linear(64, 16)
-        self.linear4 = nn.Linear(16, 6)
+        self.linear3 = nn.Linear(64, 6)
 
     def forward(self, x):
         out = self.linear1(x)
@@ -16,8 +15,6 @@ class OurNeuralNetwork_flat(nn.Module):
         out = self.linear2(out)
         out = F.selu(out)
         out = self.linear3(out)
-        out = F.relu(out)
-        out = self.linear4(out)
         return out
 
 class OurNeuralNetwork_conv(nn.Module):
