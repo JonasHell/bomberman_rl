@@ -18,7 +18,7 @@ from agent_code.our_agent.modified_rule_based_agent import Modified_Rule_Based_A
 
 
 ACTIONS = ['UP', 'RIGHT', 'DOWN', 'LEFT', 'WAIT', 'BOMB']
-MODEL_FILE_NAME = "7x7_layer3_batch1_lr075_sgd_10000games"
+MODEL_FILE_NAME = "plotting_15x15_layer3_batch4_lr01_sgd_10000games"
 
 
 def setup_training(self):
@@ -30,7 +30,7 @@ def setup_training(self):
     :param self: This object is passed to all callbacks and you can set arbitrary values.
     """
     # set learning parameters
-    self.learning_rate = 0.1
+    self.learning_rate = 0.01
     self.schedule_param = 10000.
     self.criterion = nn.CrossEntropyLoss()
     #self.optimizer = optim.Adam(self.model.parameters(), lr=0.001, weight_decay=0.0005)
