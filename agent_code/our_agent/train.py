@@ -50,7 +50,7 @@ def setup_training(self):
     self.expert = Modified_Rule_Based_Agent()
     self.logger.debug("Everything is set up for this training game.")
 
-
+j
 def game_events_occurred(self, old_game_state: dict, self_action: str, new_game_state: dict, events: List[str]):
     """
     Called once per step to allow intermediate rewards based on game events.
