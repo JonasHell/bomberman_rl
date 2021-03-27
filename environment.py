@@ -367,7 +367,7 @@ class BombeRLeWorld(GenericWorld):
                     elif self.arena[x, y] == 1:
                         self.coins.append(Coin((x, y)))
                         break
-        
+        '''
         # modified
         for i in range(2):
             for j in range(2):
@@ -381,8 +381,8 @@ class BombeRLeWorld(GenericWorld):
                     elif self.arena[x, y] == 1:
                         self.coins.append(Coin((x, y)))
                         break
-        '''
         
+        '''
         # original
         for i in range(3):
             for j in range(3):
@@ -396,7 +396,7 @@ class BombeRLeWorld(GenericWorld):
                     elif self.arena[x, y] == 1:
                         self.coins.append(Coin((x, y)))
                         break
-        
+        '''
         # Reset agents and distribute starting positions
         for agent in self.agents:
             agent.start_round()
