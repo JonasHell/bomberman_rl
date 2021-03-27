@@ -22,7 +22,7 @@ MODEL_FILE_NAME = "../../neural_network_pretraining/15x15_flat_ep200_bs32_lr0.01
 ROWS = 17
 COLS = 17
 FEATURES_PER_FIELD = 7
-SIZE_OF_INPUT = 257
+SIZE_OF_INPUT = 1137
 RANDOM_PROB = 0.0
 
 
@@ -52,7 +52,7 @@ def setup(self):
         self.logger.info("Loaded saved model.")
         print("Loaded saved Model.")
     else:
-        self.model = OurNeuralNetwork_old7(SIZE_OF_INPUT)
+        self.model = OurNeuralNetwork_old(SIZE_OF_INPUT)
         self.logger.info("Setting up model from Scratch.")
         print("Setting up model from Scratch.")
     
@@ -83,7 +83,7 @@ def act(self, game_state: dict) -> str:
         # 80%: walk in any direction. 10% wait. 10% bomb.
         return np.random.choice(ACTIONS, p=[0.2, 0.2, 0.2, 0.2, 0.1, 0.1])
 
-    state_vector = torch.tensor(state_to_features_flat7(game_state), dtype=torch.float).to(self.device)
+    state_vector = torch.tensor(state_to_features_flat(game_state), dtype=torch.float).to(self.device)
     out = self.model(state_vector)
    
     self.logger.debug("Querring model for best action.")

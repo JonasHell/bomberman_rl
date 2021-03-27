@@ -18,7 +18,7 @@ from agent_code.our_agent.modified_rule_based_agent import Modified_Rule_Based_A
 
 
 ACTIONS = ['UP', 'RIGHT', 'DOWN', 'LEFT', 'WAIT', 'BOMB']
-MODEL_FILE_NAME = "plotting_7x7_layer3_batch1_lr01_sgd_10000games"
+MODEL_FILE_NAME = "plotting_15x15_layer3_batch1_lr01_sgd_10000games"
 
 
 def setup_training(self):
@@ -47,7 +47,7 @@ def setup_training(self):
 
     self.states = [] # array to save the game states that occured
     self.targets = [] # array to save what the rule based agent would do
-    self.expert = Modified_Rule_Based_Agent7()
+    self.expert = Modified_Rule_Based_Agent()
     self.logger.debug("Everything is set up for this training game.")
 
 
@@ -66,7 +66,7 @@ def game_events_occurred(self, old_game_state: dict, self_action: str, new_game_
     if target is not None:
         # append to states and target
         self.targets.append(ACTIONS.index(target)) # CrossEntropyLoss just needs the index of target class
-        self.states.append(state_to_features_flat7(new_game_state))
+        self.states.append(state_to_features_flat(new_game_state))
         self.global_step += 1
 
         if self.global_step % self.batch_size == 0:
@@ -155,7 +155,7 @@ def end_of_round(self, last_game_state: dict, last_action: str, events: List[str
 
     # flush summary writer
     self.writer.flush()
-    if last_game_state['round'] == 1000:
+    if last_game_state['round'] == 10000:
       self.writer.close()
 
     # save the model
