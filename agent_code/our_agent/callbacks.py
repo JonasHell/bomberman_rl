@@ -83,7 +83,7 @@ def act(self, game_state: dict) -> str:
         # 80%: walk in any direction. 10% wait. 10% bomb.
         return np.random.choice(ACTIONS, p=[0.2, 0.2, 0.2, 0.2, 0.1, 0.1])
 
-    state_vector = torch.tensor(state_to_features_flat(game_state), dtype=torch.float).to(self.device)
+    state_vector = torch.tensor(state_to_features_flat7(game_state), dtype=torch.float).to(self.device)
     out = self.model(state_vector)
    
     self.logger.debug("Querring model for best action.")
