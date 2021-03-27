@@ -108,8 +108,8 @@ def game_events_occurred(self, old_game_state: dict, self_action: str, new_game_
             #self.writer.add_scalar("training global accruracy", self.correct_counter/self.global_step, self.global_step)
             #self.writer.add_scalar("training batch accruracy", correct/self.batch_size, self.global_step)
 
-            self.writer_scalar("train loss", loss, self.global_step)
-            self.writer_scalar("train accuracy", correct*100./self.batch_size, self.global_step)
+            self.writer.add_scalar("train loss", loss, self.global_step)
+            self.writer.add_scalar("train accuracy", correct*100./self.batch_size, self.global_step)
 
             #for param in self.model.parameters():
                 #print(torch.max(param.data))
