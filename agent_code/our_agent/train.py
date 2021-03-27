@@ -12,7 +12,7 @@ import torchvision
 
 from torch.utils.tensorboard import SummaryWriter
 
-from agent_code.our_agent.callbacks import state_to_features
+from agent_code.our_agent.callbacks import state_to_features_flat
 
 from agent_code.our_agent.modified_rule_based_agent import Modified_Rule_Based_Agent
 
@@ -66,7 +66,7 @@ def game_events_occurred(self, old_game_state: dict, self_action: str, new_game_
     if target is not None:
         # append to states and target
         self.targets.append(ACTIONS.index(target)) # CrossEntropyLoss just needs the index of target class
-        self.states.append(state_to_features(new_game_state))
+        self.states.append(state_to_features_flat(new_game_state))
         self.global_step += 1
 
         if self.global_step % self.batch_size == 0:
