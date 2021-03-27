@@ -34,9 +34,9 @@ def setup_training(self):
     self.schedule_param = 10000.
     self.criterion = nn.CrossEntropyLoss()
     #self.optimizer = optim.Adam(self.model.parameters(), lr=0.001, weight_decay=0.0005)
-    #self.optimizer = optim.SGD(self.model.parameters(), lr=self.learning_rate)
+    self.optimizer = optim.SGD(self.model.parameters(), lr=self.learning_rate)
     #self.optimizer = optim.Adam(self.model.parameters(), lr=0.1)
-    self.batch_size = 1
+    self.batch_size = 4
     
     # init counter
     self.global_step = 0
@@ -85,7 +85,7 @@ def game_events_occurred(self, old_game_state: dict, self_action: str, new_game_
             self.logger.debug("Output calculated.")
 
             # actual training with loss calculation, back propagation and optimization step
-            self.optimizer = optim.SGD(self.model.parameters(), lr=self.learning_rate/(1 + self.global_step/self.schedule_param))
+            #self.optimizer = optim.SGD(self.model.parameters(), lr=self.learning_rate/(1 + self.global_step/self.schedule_param))
             loss = self.criterion(out, targets)
 
             self.model.zero_grad()
@@ -104,9 +104,12 @@ def game_events_occurred(self, old_game_state: dict, self_action: str, new_game_
             print(f"[{new_game_state['round']:5}] [{new_game_state['step']:3}] [{self.global_step:7}]: loss={loss/self.batch_size:.4f}, acc_batch={correct*100/self.batch_size:5}%, acc_glo={round(self.correct_counter*100./self.global_step, 2):6}%, our={our_pred}")
             #print(f"{'':15}our={our_pred}")
             print(f"{'':73}exp={target_pred}")
-            self.writer.add_scalar("training loss per step", loss/self.batch_size, self.global_step)
-            self.writer.add_scalar("training global accruracy", self.correct_counter/self.global_step, self.global_step)
-            self.writer.add_scalar("training batch accruracy", correct/self.batch_size, self.global_step)
+            #self.writer.add_scalar("training loss per step", loss/self.batch_size, self.global_step)
+            #self.writer.add_scalar("training global accruracy", self.correct_counter/self.global_step, self.global_step)
+            #self.writer.add_scalar("training batch accruracy", correct/self.batch_size, self.global_step)
+
+            self.writer_scalar("train loss", loss, self.global_step)
+            self.writer_scalar("train accuracy", correct*100./self.batch_size, self.global_step)
 
             #for param in self.model.parameters():
                 #print(torch.max(param.data))
