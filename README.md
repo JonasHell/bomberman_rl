@@ -10,3 +10,4 @@ behavioral cloning part of the imitation learning.
 
 The branch **DLFD** contains an implementation of deep Q learning from demonstrations as suggested here https://arxiv.org/abs/1704.03732. 
 In addition, it allows for generating new expert demonstration data during training similar to the epsilon greedy exploration strategy. 
+This branch was used to create the **final agent that we handed in for the tournament**. 
