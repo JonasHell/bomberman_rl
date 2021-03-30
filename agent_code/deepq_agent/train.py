@@ -14,14 +14,14 @@ from torch import optim
 from torch.autograd import Variable
 import torch.nn as nn
 import torch.nn.functional as F
-import torchvision
+#import torchvision
 
-from torch.utils.tensorboard import SummaryWriter
+#from torch.utils.tensorboard import SummaryWriter
 
 import scipy
 
 #File name for neural network
-MODEL_FILE_NAME = "DQNN_DD2.pt"
+MODEL_FILE_NAME = "DQNN_DD2_imp.pt"
 
 
 import events as e
@@ -304,32 +304,32 @@ def rule_act(self, game_state):
 
 class QLearner:
     #Learning rate for neural network
-    learning_rate: float = 0.0005 #0.1
+    learning_rate: float = 5e-5 #0.1
     #Punishes expectation values in future
-    gamma: float = 0.9
+    gamma: float = 0.99
     #Maximum size of transitions deque
-    memory_size: int = 2048*2
+    memory_size: int = 50000
     #Batch size used for training neural network
-    batch_size: int = 256 #500
+    batch_size: int = 128 #500
 
     #Number of expert transitions taken in batches after pretraining
-    expert_share: int = 13
+    expert_share: int = 7
 
     #Add pretraining phase before 
     is_pretraining: bool = True
     #Number of transitions collected before pretraining
-    expert_memory_size: int = 512
+    expert_memory_size: int = 25000
     #Number of pretraining iterations with batch_size
-    expert_training_rounds: int = 16
+    expert_training_rounds: int = 5000
     #Stores when expert has demonstrated action
     last_action_was_expert = False
 
     #Balance between exploration and exploitation
     exploration_decay: float = 0.99 #0.98
-    exploration_max: float = 0.1 #1.0
-    exploration_min: float = 0.05
+    exploration_max: float = 0.05 #1.0
+    exploration_min: float = 0.01
     
-    expert_decay: float = 0.999 #0.98
+    expert_decay: float = 0.99999 #0.98
     expert_max: float = 0.0 #1.0
     expert_min: float = 0.0
 
@@ -354,12 +354,18 @@ class QLearner:
         #Memory of the model, stores states and actions
         self.transitions   = deque(maxlen=self.memory_size)
         self.expert_buffer = deque(maxlen=self.expert_memory_size)
+
+        #Load pretraining data if pretraining data is available
+        if os.path.isfile('experiences.npz'):
+          loaded = np.load('experiences.npz', allow_pickle=True)
+          self.expert_buffer.extend(loaded["expert_buffer"])
+
         self.logger      = logger
 
         #Determines exploration vs exploitation
         self.exploration_rate = self.exploration_max        
         self.expert_rate = self.expert_max
-        self.use_cuda: bool = False #Use GPU to train and play model
+        self.use_cuda: bool = True #Use GPU to train and play model
 
         # Double QNN
         self.TNN = NeuralNet() #Target Neural Network (TNN)
@@ -369,14 +375,14 @@ class QLearner:
             self.PNN = self.PNN.cuda()
         
         # Update frequency of target network
-        self.TR: int = 32 #How often the parameters of the TNN should be replaced with the PNN
+        self.TR: int = 128 #How often the parameters of the TNN should be replaced with the PNN
         self.tr: int = 0 #counter of TR
 
         # Loss weights for DQfD
         self.l1: float = 1
         self.l2: float = 1
         self.l3: float = 1e-5
-        self.expert_margin: float = 0.8
+        self.expert_margin: float = 0.01
 
         # Set learning rate and regularisation
         self.optimizer = optim.Adam(self.PNN.parameters(), lr=self.learning_rate, weight_decay=self.l3) #Add L2 regularization for Adam optimized
@@ -387,7 +393,7 @@ class QLearner:
         self.criterion = nn.MSELoss()
 
         # writer for tensorboard
-        self.writer = SummaryWriter()
+        #self.writer = SummaryWriter()
         self.epoch = 0
 
         #Add rule based agent code
@@ -486,14 +492,13 @@ class QLearner:
         else:
             self.logger.debug(f'{len(self.transitions)} in experience buffer')
         
+
         #Sample random batch of experiences from Q learning
         batch   = random.sample(self.transitions, self.batch_size - self.expert_share)
         #Always keep a certain share of experiences from expert buffer even after pretraining
         expert_batch = random.sample(self.expert_buffer, self.expert_share)
 
         batch.extend(expert_batch)
-
-
 
         #Run batch on NN
         self.NN_update(batch)
@@ -589,7 +594,8 @@ class QLearner:
         L = torch.sum( (predict_q - target_q) ** 2 )/batch_size 
 
         expert_size = torch.sum(is_expert)
-        L_expert = torch.sum( self.NN_expert_loss(batch_size, initial_states, actions, q_values, predict_q)*is_expert ) / expert_size
+
+        L_expert = torch.sum( self.NN_expert_loss(batch_size, initial_states, actions, q_values, predict_q)*is_expert )
         L += L_expert*self.l2
         loss = 0
 
@@ -625,10 +631,15 @@ def setup_training(self):
     """
 
     self.step_counter = 0
-    self.steps_before_replay = 8
-    self.num_rounds = 50
+    self.steps_before_replay = 4
+    self.num_rounds = 400
     #Create new folder with time step for test run
     self.directory = create_folder()
+
+
+def movingaverage(interval, window_size = 20):
+    window = np.ones(int(window_size))/float(window_size)
+    return np.convolve(interval, window, 'same')
 
 def game_events_occurred(self, old_game_state: dict, self_action: str, new_game_state: dict, events: List[str]):
     """
@@ -723,8 +734,22 @@ def game_events_occurred(self, old_game_state: dict, self_action: str, new_game_
         #Train network for self.expert_training_rounds with self.batch_size sized batches from expert buffer
         #Then start regular Q learning
         if len(self.qlearner.expert_buffer) == self.qlearner.expert_memory_size:
+            self.logger.debug("Now running pretraining")
+            np.savez_compressed('experiences.npz', expert_buffer = self.qlearner.expert_buffer)
             for i in range(self.qlearner.expert_training_rounds):
                 self.qlearner.expert_experience_replay()
+
+
+            x2 = np.arange(len(self.qlearner.Loss))
+            y2 = movingaverage(self.qlearner.Loss)
+            plt.plot(x2, y2)
+            plt.title("Loss")
+            plt.savefig("pretraining_loss.png")
+            plt.clf()
+
+            # save the NN-model
+            torch.save(self.qlearner.PNN, "DQNN_after_PT.pt")
+            self.logger.info("Model saved to " + "DQNN_after_PT.pt")
             
             self.qlearner.is_pretraining = False
     else:
@@ -737,9 +762,6 @@ def game_events_occurred(self, old_game_state: dict, self_action: str, new_game_
             self.step_counter = 0
 
 
-def movingaverage(interval, window_size = 30):
-    window = np.ones(int(window_size))/float(window_size)
-    return np.convolve(interval, window, 'same')
 
 def end_of_round(self, last_game_state: dict, last_action: str, events: List[str]):
     """
@@ -775,7 +797,7 @@ def end_of_round(self, last_game_state: dict, last_action: str, events: List[str
     if last_game_state["round"] % self.num_rounds == 0:
 
         #Store tensorboard log
-        self.qlearner.writer.flush()
+        #self.qlearner.writer.flush()
 
         suffix = "_round_"+str(last_game_state["round"])
 
@@ -831,8 +853,8 @@ def reward_from_events(self, events: List[str]) -> int:
         e.BOMB_DROPPED: -0.01,
         e.WAITED: -0.01,
         e.INVALID_ACTION: -0.02,
-        e.GOT_KILLED: -0.5,
-        e.KILLED_SELF: -1.0, 
+        e.GOT_KILLED: -0.2,
+        e.KILLED_SELF: -0.2, 
     }
 
     reward_sum = 0
@@ -877,7 +899,7 @@ def state_to_features_hybrid_vec(game_state: dict) -> np.array:
     # they are called hybrid vectors
 
     # initialize empty field
-    hybrid_vectors = np.zeros((FEATURES_PER_FIELD, COLS, ROWS), dtype=int)
+    hybrid_vectors = np.zeros((FEATURES_PER_FIELD, COLS, ROWS), dtype=bool)
     
     # check where there are stones on the field)
     # set the first entry in the vector to 1
@@ -901,7 +923,7 @@ def state_to_features_hybrid_vec(game_state: dict) -> np.array:
     # use a LSTM network
     if len(game_state['bombs']) > 0:
         bomb_coords = np.array([[bomb[0][0], bomb[0][1], bomb[1]] for bomb in game_state['bombs']]).T
-        hybrid_vectors[3, bomb_coords[0], bomb_coords[1]] = bomb_coords[2]
+        hybrid_vectors[3, bomb_coords[0], bomb_coords[1]] = 1# bomb_coords[2]
 
     # check where fire is
     # set the fifth entry in the vector to 1
@@ -912,9 +934,9 @@ def state_to_features_hybrid_vec(game_state: dict) -> np.array:
     for i in range(len(game_state['others'])):
         enemy = game_state['others'][i]
          #Value is 1 if enemy cannot place bomb and 2 if otherwise
-        hybrid_vectors[5, enemy[3][0],enemy[3][1]] = 1 + int(enemy[2])
+        hybrid_vectors[5, enemy[3][0],enemy[3][1]] = 1 #+ int(enemy[2])
     
     # add player coordinates
-    hybrid_vectors[6, game_state['self'][3][0], game_state['self'][3][1]] = 1 + int(game_state['self'][2])
+    hybrid_vectors[6, game_state['self'][3][0], game_state['self'][3][1]] = 1 #+ int(game_state['self'][2])
 
     return hybrid_vectors
